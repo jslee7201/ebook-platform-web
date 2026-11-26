@@ -138,7 +138,7 @@ $('save').onclick = async () => {
     if (status === '확인 완료' && pend) status = '확인 중';
     const noteMsg = ns.notes.length || pend ? ` 편집 지시문: 새로 ${ns.notes.length}건 (자동 분리 ${ns.notes.filter(n => n.level === '확실').length}, 확인 필요 ${pend}) → <a href="notes.html?ms=${msRow.id}">편집 지시문 화면</a>` : '';
     r = await sb.from('manuscripts').update({ convert_status: status, converted_at: new Date().toISOString(), reviewed_pages: [...reviewed] }).eq('id', msRow.id); if (r.error) throw r.error;
-    msRow.convert_status = status; dirty = false; $('msg').innerHTML = `저장했습니다 (${status}).` + noteMsg; mark(); draw(); $('sub').textContent = `${msRow.filename} · ${pdf.numPages}쪽 · 상태 ${status}`;
+    msRow.convert_status = status; dirty = false; $('msg').innerHTML = `저장했습니다 (${status}).` + noteMsg; draw(); $('sub').textContent = `${msRow.filename} · ${pdf.numPages}쪽 · 상태 ${status}`;
   } catch (e) { $('msg').textContent = '저장하지 못했습니다: ' + e.message; $('save').disabled = false; }
 };
 document.addEventListener('click', e => {
