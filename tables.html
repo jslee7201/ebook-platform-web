@@ -103,17 +103,17 @@ function checks() {
   G.forEach((r, i) => {
     const vis = r.filter(c => !c.hid), filled = r.filter(c => !c.hid && c.t.trim());
     const raw = r[0].raw_len;
-    if (raw && raw < n) {
+    if ((raw === 1 && r[0].t.trim().length > 40) || (filled.length === 1 && vis[0].t.length > 60 && /^[†*주※]/.test(vis[0].t.trim()))) {
+      out.push({ i, cls: 'warn', t: `${i + 1}째 줄: 긴 글 한 칸 (각주로 보임)`, fixes: [{ l: '표 주석으로 옮기기', f: () => { $('note').value = ($('note').value ? $('note').value + ' ' : '') + G[i][0].t.trim(); delRow(i); } }, { l: '가로로 전체 병합', f: () => { G[i][0].cs = n; delete G[i][0].raw_len; } }] });
+    } else if (raw && raw < n) {
       const k = n - raw;
       out.push({ i, cls: 'warn', t: `${i + 1}째 줄: 칸이 ${k}개 모자랍니다 (병합이 풀려 앞으로 밀린 것으로 보임)`,
         fixes: [{ l: `위 칸과 세로 병합 (앞 ${k}칸)`, f: () => fixRowspan(i, k) }, { l: `첫 칸을 가로 ${k + 1}칸으로`, f: () => fixColspan(i, k) }] });
     } else if (i >= hdr && filled.length === 1 && vis.length > 1 && vis[0].t.trim() && !(raw === 1 && vis[0].t.length > 60)) {
       out.push({ i, cls: 'warn', t: `${i + 1}째 줄: 첫 칸만 있습니다 (묶음 제목 줄로 보임)`, fixes: [{ l: '가로로 전체 병합', f: () => { G[i][0].cs = n; } }] });
-    } else if (raw === 1 || (filled.length === 1 && vis[0].t.length > 60 && /^[†*주※]/.test(vis[0].t.trim()))) {
-      out.push({ i, cls: 'warn', t: `${i + 1}째 줄: 긴 글 한 칸 (각주로 보임)`, fixes: [{ l: '표 주석으로 옮기기', f: () => { $('note').value = ($('note').value ? $('note').value + ' ' : '') + G[i][0].t.trim(); delRow(i); } }, { l: '가로로 전체 병합', f: () => { G[i][0].cs = n; delete G[i][0].raw_len; } }] });
     }
     r.forEach((c, j) => { if (c.hid) return;
-      const glued = c.t.match(/\)(?=[A-Za-z가-힣])|[가-힣a-z](?=[a-z]?RNA:|[A-Z][a-z]+ [a-z]+ (?:[A-Z]|$))/g);
+      const glued = c.t.match(/\)(?=[A-Z]|[가-힣](?![과와은는이가을를의에도로]))|[가-힣a-z](?=[a-z]?RNA:|[A-Z][a-z]+ [a-z]+ (?:[A-Z]|$))/g);
       if (glued && !c.t.includes('\n')) out.push({ i, j, cls: 'warn', t: `${i + 1}째 줄 ${j + 1}째 칸: 여러 항목이 붙어 있는 듯합니다 ("${c.t.slice(0, 40)}…")`,
         fixes: [{ l: '항목마다 줄바꿈', f: () => { c.t = c.t.replace(/\)(?=[A-Za-z가-힣])/g, ')\n').replace(/([가-힣a-z])(?=[a-z]?RNA:)/g, '$1\n'); } }] });
     });
