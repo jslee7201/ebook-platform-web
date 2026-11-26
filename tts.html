@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TTS 비교</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@700&display=swap">
+<link rel="stylesheet" href="app.css?v=5">
+<style>
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:20px}
+.segs{display:grid;gap:6px}
+.seg{display:flex;gap:8px;align-items:center;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 10px;cursor:pointer;color:inherit}
+.seg[aria-current="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.txt{white-space:pre-wrap;line-height:1.8;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;max-height:220px;overflow:auto}
+.cands{display:grid;gap:8px}
+.cand{display:flex;gap:8px;flex-wrap:wrap;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.cand.sel{border-color:var(--accent)}
+.scores{display:grid;grid-template-columns:9em repeat(5,auto);gap:6px 10px;align-items:center}
+.scores label{font-size:13px}
+.bar{display:inline-block;height:8px;border-radius:4px;background:var(--accent);vertical-align:middle}
+</style>
+</head><body>
+<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="index.html">홈</a><a href="figures.html">그림 대장</a><a href="queries.html">원서 의문점</a><a href="chatbot.html">챗봇 거절</a><a href="tts.html" aria-current="page">TTS 비교</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
+<main>
+  <div>
+    <h1>TTS 비교</h1>
+    <p class="muted" style="margin:0">같은 낭독 원고를 여러 음성으로 들어 보고 <b>발음·의학용어·자연스러움·속도</b>를 1~5점으로 평가합니다. 낭독문은 원문에서 자동으로 만듭니다(인용번호·영문 병기 빼기, 그림·표 번호 읽기, 발음 사전 적용). 잘못 읽은 말은 바로 발음 사전에 넣습니다. 상용 음성은 계약과 API 키가 생기면 녹음 파일로 올려 같은 방식으로 비교합니다.</p>
+  </div>
+  <div class="row" role="tablist" id="books" aria-label="책 선택"></div>
+
+  <section class="card" aria-labelledby="r-h">
+    <h2 id="r-h">후보별 결과</h2>
+    <div class="tbl"><table><thead><tr><th>후보</th><th>방식</th><th>상태</th><th>발음</th><th>의학용어</th><th>자연스러움</th><th>속도·쉼</th><th>평균</th><th>평가</th><th></th></tr></thead><tbody id="sum"></tbody></table></div>
+    <p id="devnote" class="note" style="margin:0"></p>
+  </section>
+
+  <div class="grid2">
+    <section class="card" aria-labelledby="s-h">
+      <h2 id="s-h">낭독 구간</h2>
+      <div id="segs" class="segs"></div>
+    </section>
+    <section class="card" aria-labelledby="l-h">
+      <div class="row" style="justify-content:space-between"><h2 id="l-h">듣기</h2>
+        <div class="row"><label class="note" for="rate">속도</label><input type="range" id="rate" min="0.7" max="1.3" step="0.05" value="1" style="width:8em"><span id="ratev" class="note">1.00</span><button id="stop" class="btn ghost" type="button">멈춤</button></div></div>
+      <details><summary class="note">화면 표시 원문</summary><div id="disp" class="txt"></div></details>
+      <label class="note" for="narr">낭독문 (자동 생성 · 고치면 이 구간에 저장)</label>
+      <textarea id="narr" style="min-height:120px"></textarea>
+      <div class="row"><button id="saveN" class="btn ghost" type="button">낭독문 저장</button><button id="resetN" class="btn ghost" type="button">자동 생성으로 되돌리기</button><span id="nmsg" class="note"></span></div>
+      <div id="cands" class="cands"></div>
+    </section>
+  </div>
+
+  <section class="card" aria-labelledby="e-h">
+    <h2 id="e-h">청취 평가 <span id="etarget" class="note"></span></h2>
+    <form id="ef" style="display:grid;gap:10px">
+      <div class="scores" id="scores"></div>
+      <div class="form">
+        <label for="misread">잘못 읽은 말</label><input id="misread" placeholder="예: HADS를 '하드스'로 읽음">
+        <label for="enote">메모</label><input id="enote">
+      </div>
+      <div class="row"><button class="btn" id="esave">평가 저장</button><span id="emsg" class="note"></span></div>
+    </form>
+  </section>
+
+  <section class="card" aria-labelledby="x-h">
+    <div class="row" style="justify-content:space-between"><h2 id="x-h">발음 사전 <span id="xn" class="pill"></span></h2></div>
+    <form id="xf" class="row"><label class="note" for="xk">종류</label><select id="xk"><option>약어</option><option>용어</option><option>기호</option></select>
+      <label class="note" for="xs">표기</label><input id="xs" required style="width:9em"><label class="note" for="xy">읽기</label><input id="xy" required style="width:12em">
+      <button class="btn">추가</button><span id="xmsg" class="note"></span></form>
+    <div class="tbl"><table><thead><tr><th>종류</th><th>표기</th><th>읽기</th><th>메모</th></tr></thead><tbody id="xrows"></tbody></table></div>
+  </section>
+</main>
+
+<dialog id="dd">
+  <form id="df" method="dialog" style="display:grid;gap:12px">
+    <h2 id="dt">결정</h2>
+    <select id="ds" aria-label="상태"><option>후보</option><option>준비 필요</option><option>채택</option><option>제외</option></select>
+    <label class="note" for="dn">이유 (채택·제외는 필수)</label><textarea id="dn" style="min-height:80px"></textarea>
+    <div id="dmsg" class="msg bad" hidden></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn ghost" value="cancel" formnovalidate>닫기</button><button class="btn" value="save">저장</button></div>
+  </form>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="config.js?v=2"></script>
+<script src="narrate.js?v=1"></script>
+<script>
+const $ = id => document.getElementById(id);
+const CRIT = [['pronunciation', '발음 정확도'], ['terms', '의학용어·약어'], ['naturalness', '자연스러움·억양'], ['pacing', '속도·쉼']];
+let books = [], cur = null, segs = [], cands = [], lex = [], ratings = [], recs = [], seg = null, cand = null, voices = [], isAdmin = false, uid = null, deciding = null;
+const avg = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : null;
+const f1 = v => v == null ? '-' : v.toFixed(1);
+$('scores').innerHTML = CRIT.map(([k, l]) => `<span class="note">${l}</span>` + [1, 2, 3, 4, 5].map(n => `<label><input type="radio" name="${k}" value="${n}" required> ${n}</label>`).join('')).join('');
+
+function loadVoices() {
+  voices = (window.speechSynthesis?.getVoices() || []).filter(v => /^ko/i.test(v.lang));
+}
+async function registerVoices() {
+  const known = new Set(cands.filter(c => c.engine === '기기 음성').map(c => c.voice_key));
+  const add = voices.filter(v => !known.has(v.name)).map(v => ({ name: v.name, engine: '기기 음성', voice_key: v.name, provider: v.localService ? '기기 내장' : '온라인(브라우저 제공)', cost_note: v.localService ? '추가 비용 없음(이 기기)' : '브라우저가 제공하는 온라인 음성. 출판물 제작에 쓸 수 있는지 약관 확인 필요' }));
+  if (add.length) { await sb.from('tts_candidates').insert(add); }
+}
+async function loadBooks() {
+  const { data } = await sb.from('books').select('id,title').order('title');
+  const { data: s } = await sb.from('tts_segments').select('book_id');
+  const has = new Set((s || []).map(x => x.book_id));
+  books = (data || []).filter(b => has.has(b.id)); if (!cur) cur = books[0]?.id;
+  $('books').innerHTML = books.length ? books.map(b => `<button role="tab" class="btn ${b.id === cur ? '' : 'ghost'}" aria-selected="${b.id === cur}" data-book="${b.id}">${esc(b.title)}</button>`).join('') : '<p class="note">낭독 구간이 등록된 책이 없습니다.</p>';
+}
+async function loadAll() {
+  const [a, b, c, d] = await Promise.all([
+    sb.from('tts_segments').select('*').eq('book_id', cur).order('seq'),
+    sb.from('tts_candidates').select('*').order('id'),
+    sb.from('tts_lexicon').select('*').order('kind').order('src'),
+    sb.from('tts_ratings').select('*')]);
+  segs = a.data || []; cands = b.data || []; lex = c.data || []; ratings = (d.data || []).filter(r => segs.some(s => s.id === r.segment_id));
+  await registerVoices();
+  if (voices.length && cands.filter(c => c.engine === '기기 음성').length < voices.length) { const { data } = await sb.from('tts_candidates').select('*').order('id'); cands = data || cands; }
+  const { data: r } = await sb.from('tts_recordings').select('*').in('segment_id', segs.map(s => s.id)); recs = r || [];
+  if (!seg || !segs.find(s => s.id === seg.id)) seg = segs[0];
+  if (!cand) cand = cands.find(c => c.engine === '기기 음성' && voices.some(v => v.name === c.voice_key)) || cands[0];
+  renderAll();
+}
+function renderAll() { renderSum(); renderSegs(); renderSeg(); renderLex(); renderEval(); }
+function renderSum() {
+  const order = { '채택': 0, '후보': 1, '준비 필요': 2, '제외': 3 };
+  const rows = [...cands].sort((a, b) => order[a.status] - order[b.status] || a.id - b.id).map(c => {
+    const rs = ratings.filter(r => r.candidate_id === c.id);
+    const m = CRIT.map(([k]) => avg(rs.map(r => r[k]))); const all = avg(m.filter(x => x != null));
+    const raters = new Set(rs.map(r => r.rater)).size;
+    const here = c.engine !== '기기 음성' || voices.some(v => v.name === c.voice_key);
+    return `<tr><td><b>${esc(c.name)}</b><br><span class="note">${esc(c.provider || '')}${c.engine === '기기 음성' && !here ? ' · 이 기기에 없음' : ''}</span>${c.decision_note ? `<br><span class="note">${esc(c.decision_note)}</span>` : ''}</td>
+      <td><span class="pill">${esc(c.engine)}</span></td><td><span class="pill ${c.status === '채택' ? 'ok' : c.status === '제외' ? 'bad' : c.status === '준비 필요' ? 'warn' : ''}">${esc(c.status)}</span></td>
+      ${m.map(v => `<td>${f1(v)}</td>`).join('')}<td>${all == null ? '-' : `<span class="bar" style="width:${all * 12}px"></span> <b>${f1(all)}</b>`}</td>
+      <td><span class="note">${rs.length}건 · ${raters}명</span></td>
+      <td>${isAdmin ? `<button class="btn ghost" data-decide="${c.id}">결정</button>` : ''}</td></tr>`;
+  });
+  $('sum').innerHTML = rows.join('');
+  $('devnote').textContent = window.speechSynthesis ? `이 기기·브라우저의 한국어 음성 ${voices.length}개: ${voices.map(v => v.name + (v.localService ? '' : ' (온라인)')).join(', ') || '없음'}. 다른 기기에서 열면 그 기기의 음성이 후보로 추가됩니다.` : '이 브라우저는 음성 합성을 지원하지 않습니다.';
+}
+function renderSegs() {
+  $('segs').innerHTML = segs.map(s => { const n = ratings.filter(r => r.segment_id === s.id).length;
+    return `<button type="button" class="seg" data-seg="${s.id}" aria-current="${s.id === seg?.id}"><span class="pill">${s.seq}</span><span style="flex:1"><b>${esc(s.kind)}</b> <span class="note">${esc(s.seg_id)}${s.voice_note ? ' · ' + esc(s.voice_note) : ''}</span></span><span class="note">평가 ${n}</span>${s.narration_override ? '<span class="pill warn">낭독문 수정</span>' : ''}</button>`; }).join('');
+}
+const narrationOf = s => s.narration_override || Narrate.narrate(s.display_text, lex);
+function renderSeg() {
+  if (!seg) return;
+  $('disp').textContent = seg.display_text; $('narr').value = narrationOf(seg); $('nmsg').textContent = seg.narration_override ? '수정한 낭독문' : '자동 생성';
+  $('cands').innerHTML = cands.filter(c => c.status !== '제외').map(c => {
+    let act = '';
+    if (c.engine === '기기 음성') act = voices.some(v => v.name === c.voice_key) ? `<button type="button" class="btn ghost" data-play="${c.id}">▶ 듣기</button>` : '<span class="note">이 기기에 없는 음성</span>';
+    else if (c.engine === '녹음 파일') { const r = recs.find(x => x.candidate_id === c.id && x.segment_id === seg.id);
+      act = (r ? `<button type="button" class="btn ghost" data-rec="${r.id}">▶ 녹음 듣기</button>` : '<span class="note">녹음 없음</span>') + ` <label class="note">올리기 <input type="file" accept="audio/*" data-up="${c.id}" style="width:12em"></label>`; }
+    else act = '<span class="note">계약·API 키가 생기면 생성 음성을 녹음 파일로 올려 비교</span>';
+    return `<div class="cand ${c.id === cand?.id ? 'sel' : ''}"><b style="flex:1;min-width:10em">${esc(c.name)}</b>${act}<button type="button" class="btn ${c.id === cand?.id ? '' : 'ghost'}" data-pick="${c.id}" ${c.engine === '상용 API' ? 'disabled' : ''}>평가 대상</button></div>`;
+  }).join('');
+}
+function renderEval() {
+  $('etarget').textContent = cand && seg ? `— ${cand.name} · ${seg.seq}. ${seg.kind}` : '';
+  const mine = ratings.find(r => r.candidate_id === cand?.id && r.segment_id === seg?.id && r.rater === uid);
+  CRIT.forEach(([k]) => document.querySelectorAll(`input[name=${k}]`).forEach(i => i.checked = mine ? +i.value === mine[k] : false));
+  $('misread').value = mine?.misread || ''; $('enote').value = mine?.note || ''; $('emsg').textContent = mine ? '내 평가를 불러왔습니다. 고쳐서 다시 저장할 수 있습니다.' : '';
+  $('esave').disabled = !cand || cand.engine === '상용 API';
+}
+function renderLex() {
+  $('xn').textContent = lex.length;
+  $('xrows').innerHTML = lex.map(e => `<tr><td>${esc(e.kind)}</td><td><code>${esc(e.src)}</code></td><td>${esc(e.say)}</td><td class="note">${esc(e.note || '')}</td></tr>`).join('');
+}
+// 재생
+function speak(c) {
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance($('narr').value); const v = voices.find(x => x.name === c.voice_key);
+  if (v) { u.voice = v; u.lang = v.lang; } u.rate = +$('rate').value; speechSynthesis.speak(u);
+}
+let audio = null;
+async function playRec(id) {
+  const r = recs.find(x => x.id == id); const { data, error } = await sb.storage.from('tts-audio').createSignedUrl(r.storage_path, 600);
+  if (error) { alert('녹음을 열지 못했습니다: ' + error.message); return; }
+  audio?.pause(); audio = new Audio(data.signedUrl); audio.playbackRate = +$('rate').value; audio.play();
+}
+$('stop').onclick = () => { speechSynthesis?.cancel(); audio?.pause(); };
+$('rate').oninput = () => { $('ratev').textContent = (+$('rate').value).toFixed(2); if (audio) audio.playbackRate = +$('rate').value; };
+document.addEventListener('click', async e => {
+  const t = e.target;
+  const bk = t.closest('[data-book]'); if (bk) { cur = bk.dataset.book; seg = null; await loadBooks(); await loadAll(); return; }
+  const sg = t.closest('[data-seg]'); if (sg) { seg = segs.find(s => s.id == sg.dataset.seg); speechSynthesis?.cancel(); renderSegs(); renderSeg(); renderEval(); return; }
+  const pl = t.closest('[data-play]'); if (pl) { const c = cands.find(x => x.id == pl.dataset.play); cand = c; renderSeg(); renderEval(); speak(c); return; }
+  const rc = t.closest('[data-rec]'); if (rc) { playRec(rc.dataset.rec); return; }
+  const pk = t.closest('[data-pick]'); if (pk) { cand = cands.find(x => x.id == pk.dataset.pick); renderSeg(); renderEval(); return; }
+  const dc = t.closest('[data-decide]'); if (dc) { deciding = cands.find(x => x.id == dc.dataset.decide); $('dt').textContent = deciding.name; $('ds').value = deciding.status; $('dn').value = deciding.decision_note || ''; $('dmsg').hidden = true; $('dd').showModal(); }
+});
+document.addEventListener('change', async e => {
+  const up = e.target.closest('[data-up]'); if (!up || !up.files[0]) return;
+  const f = up.files[0], c = cands.find(x => x.id == up.dataset.up); const ext = (f.name.split('.').pop() || 'mp3').toLowerCase();
+  const path = `${cur}/${c.id}/${seg.seg_id}.${ext}`;
+  const { error } = await sb.storage.from('tts-audio').upload(path, f, { upsert: true, contentType: f.type || 'audio/mpeg' });
+  if (error) { alert('올리지 못했습니다: ' + error.message); return; }
+  await sb.from('tts_recordings').upsert({ candidate_id: c.id, segment_id: seg.id, storage_path: path, uploaded_by: uid, uploaded_at: new Date().toISOString() }, { onConflict: 'candidate_id,segment_id' });
+  const { data } = await sb.from('tts_recordings').select('*').in('segment_id', segs.map(s => s.id)); recs = data || []; renderSeg();
+});
+// 낭독문 저장
+$('saveN').onclick = async () => {
+  const v = $('narr').value.trim(); const auto = Narrate.narrate(seg.display_text, lex);
+  const { error } = await sb.from('tts_segments').update({ narration_override: v && v !== auto ? v : null }).eq('id', seg.id);
+  $('nmsg').textContent = error ? '저장 실패: ' + error.message : (v && v !== auto ? '수정한 낭독문을 저장했습니다' : '자동 생성과 같아 따로 저장하지 않았습니다');
+  if (!error) { seg.narration_override = v && v !== auto ? v : null; renderSegs(); }
+};
+$('resetN').onclick = async () => { await sb.from('tts_segments').update({ narration_override: null }).eq('id', seg.id); seg.narration_override = null; renderSegs(); renderSeg(); };
+// 평가 저장
+$('ef').onsubmit = async e => {
+  e.preventDefault(); if (!cand || !seg) return;
+  const row = { candidate_id: cand.id, segment_id: seg.id, rater: uid, misread: $('misread').value.trim() || null, note: $('enote').value.trim() || null, rate: +$('rate').value, created_at: new Date().toISOString() };
+  for (const [k] of CRIT) { const c = document.querySelector(`input[name=${k}]:checked`); if (!c) { $('emsg').textContent = '네 항목 모두 점수를 골라 주세요.'; return; } row[k] = +c.value; }
+  const { error } = await sb.from('tts_ratings').upsert(row, { onConflict: 'candidate_id,segment_id,rater' });
+  $('emsg').textContent = error ? '저장 실패: ' + error.message : '저장했습니다.' + (row.misread ? ' 잘못 읽은 말은 아래 발음 사전에 추가해 주세요.' : '');
+  if (!error) { const { data } = await sb.from('tts_ratings').select('*'); ratings = (data || []).filter(r => segs.some(s => s.id === r.segment_id)); renderSum(); renderSegs(); if (row.misread) $('xs').focus(); }
+};
+// 발음 사전 추가
+$('xf').onsubmit = async e => {
+  e.preventDefault(); const row = { kind: $('xk').value, src: $('xs').value.trim(), say: $('xy').value.trim() };
+  const { error } = await sb.from('tts_lexicon').insert(row);
+  $('xmsg').textContent = error ? (error.code === '23505' ? '이미 있는 표기입니다.' : error.message) : `추가했습니다. 낭독문에 바로 반영됩니다.`;
+  if (!error) { $('xs').value = $('xy').value = ''; const { data } = await sb.from('tts_lexicon').select('*').order('kind').order('src'); lex = data; renderLex(); renderSeg(); }
+};
+// 결정
+$('df').addEventListener('submit', async e => {
+  if (e.submitter?.value !== 'save') return; e.preventDefault();
+  const { error } = await sb.from('tts_candidates').update({ status: $('ds').value, decision_note: $('dn').value.trim() || null }).eq('id', deciding.id);
+  if (error) { $('dmsg').hidden = false; $('dmsg').textContent = error.message; return; }
+  $('dd').close(); const { data } = await sb.from('tts_candidates').select('*').order('id'); cands = data; renderAll();
+});
+requireMember(async (s, prof) => {
+  uid = s.user.id; isAdmin = prof.role === 'admin';
+  loadVoices();
+  if (window.speechSynthesis && !voices.length) await new Promise(r => { speechSynthesis.onvoiceschanged = () => { loadVoices(); r(); }; setTimeout(r, 1500); });
+  await loadBooks(); await loadAll();
+});
+</script>
+</body></html>
