@@ -155,7 +155,7 @@ function openEdit(q) {
 }
 $('tpl').onclick = () => {
   const q = editing; if (!q) return;
-  $('f_rep').value = `Issue: [reason in English]\n   Suggested reading: "${q.suggested_en || ''}"`;
+  $('f_rep').value = `Issue: [reason in English]\nSuggested reading: "${q.suggested_en || ''}"`;
 };
 $('ff').addEventListener('submit', async e => {
   if (e.submitter?.value !== 'save') return; e.preventDefault();
