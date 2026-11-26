@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>챗봇 거절 관리</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@700&display=swap">
+<link rel="stylesheet" href="app.css?v=5">
+<style>
+.chat{display:grid;gap:8px;max-height:520px;overflow:auto;padding:4px}
+.m{padding:10px 12px;border-radius:10px;white-space:pre-wrap;max-width:92%;border:1px solid var(--line);overflow-wrap:anywhere}
+.m.u{justify-self:end;background:var(--accent-soft);border-color:transparent}
+.m.b{justify-self:start;background:var(--surface)}
+.m.urgent{border-color:var(--bad);background:var(--bad-soft)}
+.m.clinical{border-color:var(--warn);background:var(--warn-soft)}
+.m.out_of_book_medical,.m.out_of_book{background:var(--bg)}
+.m .meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;white-space:normal}
+.m .src{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;white-space:normal}
+.r-answered{background:var(--ok-soft);color:var(--ok)} .r-urgent{background:var(--bad-soft);color:var(--bad)}
+.r-clinical{background:var(--warn-soft);color:var(--warn)} .r-out_of_book_medical,.r-out_of_book{background:var(--accent-soft);color:var(--accent)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:20px}
+table.cm{min-width:0} table.cm td,table.cm th{text-align:center;padding:6px 8px} table.cm td.hit{font-weight:600;color:var(--ok)} table.cm td.miss{color:var(--bad);font-weight:600}
+.pol textarea{min-height:90px}
+</style>
+</head><body>
+<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="index.html">홈</a><a href="glossary.html">공용 용어집</a><a href="rights.html">권리 게이트</a><a href="figures.html">그림 대장</a><a href="queries.html">원서 의문점</a><a href="chatbot.html" aria-current="page">챗봇 거절 관리</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
+<main>
+  <div>
+    <h1>챗봇 거절 관리</h1>
+    <p class="muted" style="margin:0">도서 챗봇이 답하지 않는 이유를 네 가지로 나눠 안내합니다. <b>응급·위기</b>(119·109 안내), <b>진료 상담 거절</b>(개인 증상·치료 선택), <b>책 밖 의료 정보</b>(약 용량·시술처럼 책에 근거가 없는 의료 질문), <b>책 밖 질문</b>(그 밖의 내용)입니다. 평가 세트로 판정 정확도를 재고, 시험 대화에서 틀린 판정은 바로 평가 세트에 넣습니다.</p>
+  </div>
+  <div class="row" role="tablist" id="books" aria-label="책 선택"></div>
+
+  <section class="card" aria-labelledby="c-h">
+    <div class="row" style="justify-content:space-between"><h2 id="c-h">책 색인</h2><span id="cinfo" class="note"></span></div>
+    <div id="cadmin" class="row" hidden>
+      <label class="note" for="cfile">색인 파일(.json) 올리기</label><input type="file" id="cfile" accept="application/json,.json">
+      <span class="note">원문이 들어 있어 공개 저장소에 두지 않고, 로그인한 구성원만 받습니다.</span>
+    </div>
+    <div id="cmsg" class="msg" hidden></div>
+  </section>
+
+  <div class="grid2">
+    <section class="card" aria-labelledby="t-h">
+      <h2 id="t-h">시험 대화</h2>
+      <div id="chat" class="chat" aria-live="polite"></div>
+      <form id="cf" class="row"><label for="cin" class="note" hidden>질문</label><input id="cin" style="flex:1" placeholder="질문을 입력하세요" autocomplete="off"><button class="btn" id="csend">보내기</button></form>
+      <p class="note" style="margin:0">대화는 본인과 관리자만 볼 수 있게 기록됩니다. 판정이 틀렸으면 <b>틀림</b>을 눌러 맞는 사유를 고르면 평가 세트에 추가됩니다.</p>
+    </section>
+
+    <section class="card" aria-labelledby="e-h">
+      <div class="row" style="justify-content:space-between"><h2 id="e-h">판정 평가</h2><button id="run" class="btn">평가 실행</button></div>
+      <div id="esum" class="row"></div>
+      <div class="tbl"><table class="cm" id="cm"></table></div>
+      <details><summary class="note">틀린 질문 <span id="fn"></span></summary><ol id="fails" class="note"></ol></details>
+      <details><summary class="note">평가 이력</summary><ol id="runs" class="note"></ol></details>
+    </section>
+  </div>
+
+  <section class="card pol" aria-labelledby="p-h">
+    <h2 id="p-h">사유별 안내 문구</h2>
+    <p class="note" style="margin:0"><code>{scope}</code> 자리에는 책 색인의 범위 설명이 들어갑니다. 관리자만 고칠 수 있고, 고친 기록이 남습니다. 응급·위기 문구에는 119 안내를 뺄 수 없습니다.</p>
+    <div id="pols" class="grid2"></div>
+    <div id="pmsg" class="msg" hidden></div>
+  </section>
+
+  <section class="card" aria-labelledby="s-h">
+    <div class="row" style="justify-content:space-between"><h2 id="s-h">평가 세트 <span id="sn" class="pill"></span></h2>
+      <div class="row"><label class="note" for="so">출처</label><select id="so"><option value="">전체</option><option>개발용</option><option>검증용</option><option>새 질문</option><option>대화 피드백</option><option>직접 추가</option></select></div></div>
+    <form id="sf" class="row"><label class="note" for="sq">질문</label><input id="sq" style="flex:1;min-width:12em" required><label class="note" for="se">기대 사유</label><select id="se"></select><button class="btn">추가</button></form>
+    <div id="smsg" class="msg bad" hidden></div>
+    <div class="tbl"><table><thead><tr><th>질문</th><th>기대 사유</th><th>출처</th><th>사용</th></tr></thead><tbody id="srows"></tbody></table></div>
+  </section>
+</main>
+
+<dialog id="fb">
+  <form id="fbf" method="dialog" style="display:grid;gap:12px">
+    <h2>맞는 사유 고르기</h2>
+    <p id="fbq" class="note" style="margin:0"></p>
+    <select id="fbe" aria-label="맞는 사유"></select>
+    <div class="row" style="justify-content:flex-end"><button class="btn ghost" value="cancel" formnovalidate>닫기</button><button class="btn" value="save">평가 세트에 추가</button></div>
+  </form>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="config.js?v=2"></script>
+<script src="chatbot.js?v=1"></script>
+<script>
+const $ = id => document.getElementById(id);
+const L = ChatBot.LABEL, RS = ChatBot.REASONS;
+let books = [], cur = null, corpus = null, bot = null, pols = [], cases = [], isAdmin = false, uid = null, fbLog = null;
+const pill = r => `<span class="pill r-${r}">${esc(L[r] || r)}</span>`;
+const fmt = t => new Date(t).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' });
+$('se').innerHTML = $('fbe').innerHTML = RS.map(r => `<option value="${r}">${L[r]}</option>`).join('');
+
+async function loadBooks() {
+  const { data } = await sb.from('books').select('id,title,work_type').order('title');
+  books = data || []; if (!cur) cur = (books.find(b => b.work_type === '번역서') || books[0])?.id;
+  $('books').innerHTML = books.map(b => `<button role="tab" class="btn ${b.id === cur ? '' : 'ghost'}" aria-selected="${b.id === cur}" data-book="${b.id}">${esc(b.title)}</button>`).join('');
+}
+function makeBot() {
+  if (!corpus) { bot = null; return; }
+  const messages = Object.fromEntries(pols.map(p => [p.reason, p.message]));
+  bot = ChatBot.create({ chunks: corpus.chunks, terms: corpus.terms, content: corpus.content }, { messages, scope: corpus.scope_note });
+}
+async function loadAll() {
+  $('chat').innerHTML = ''; $('cmsg').hidden = true;
+  const [{ data: c }, { data: p }] = await Promise.all([
+    sb.from('chat_corpora').select('*').eq('book_id', cur).maybeSingle(),
+    sb.from('chat_policies').select('*').order('sort')]);
+  corpus = c; pols = p || []; makeBot();
+  $('cinfo').textContent = corpus ? `조각 ${corpus.chunks.length}개 · 용어 ${corpus.terms.length}개 · 예시 문답 ${(corpus.content.samples || []).length}개 · v${corpus.version} · ${fmt(corpus.updated_at)} · 범위: ${corpus.scope_note || '-'}` : '이 책은 아직 색인이 없습니다.';
+  $('cadmin').hidden = !isAdmin;
+  ['cin', 'csend', 'run'].forEach(id => $(id).disabled = !bot);
+  if (bot) addBot({ reason: null, message: `이 책(${corpus.scope_note || ''})의 내용만으로 답하고, 근거 위치를 붙입니다. 진료 상담은 하지 않습니다.` });
+  renderPols(); await loadCases(); await loadRuns(); $('esum').innerHTML = ''; $('cm').innerHTML = ''; $('fails').innerHTML = ''; $('fn').textContent = '';
+}
+// ---- 색인 올리기 (관리자) ----
+$('cfile').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return; const m = $('cmsg'); m.hidden = false;
+  try {
+    const j = JSON.parse(await f.text());
+    if (!Array.isArray(j.chunks) || !j.chunks.length || !j.chunks.every(c => c.id && c.text)) throw new Error('chunks 배열(id·text)이 없습니다');
+    const b = books.find(x => x.id === cur);
+    if (j.book_title && b && j.book_title !== b.title) throw new Error(`파일의 책(${j.book_title})이 선택한 책(${b.title})과 다릅니다`);
+    const row = { book_id: cur, chunks: j.chunks, terms: j.terms || [], content: j.content || {}, scope_note: j.scope_note || null, version: (corpus?.version || 0) + 1, updated_at: new Date().toISOString(), updated_by: uid };
+    const { error } = await sb.from('chat_corpora').upsert(row);
+    if (error) throw error;
+    m.className = 'msg'; m.textContent = `색인을 올렸습니다: 조각 ${j.chunks.length}개 (v${row.version})`; await loadAll(); $('cmsg').hidden = false; $('cmsg').textContent = `색인을 올렸습니다: 조각 ${j.chunks.length}개 (v${row.version})`;
+  } catch (err) { m.className = 'msg bad'; m.textContent = '올리지 못했습니다: ' + (err.message || err); }
+  e.target.value = '';
+};
+// ---- 시험 대화 ----
+function addBot(r, logId) {
+  const d = document.createElement('div'); d.className = 'm b ' + (r.reason || '');
+  let h = esc(r.message);
+  if (r.sources?.length) h += `<div class="src">${[...new Set(r.sources)].slice(0, 5).map(id => `<span class="pill">근거: ${esc(bot.label(id))}</span>`).join('')}</div>`;
+  if (r.related?.length) h += `<div class="src"><span class="note">대신 책의 일반 내용:</span>${r.related.map(x => `<span class="pill">${esc(bot.label(x.id))}</span>`).join('')}</div>`;
+  if (r.reason) h += `<div class="meta">${pill(r.reason)}<span class="note">${esc(r.rule || r.mode || '')}${r.top != null ? ' · 점수 ' + r.top : ''}${r.unknown?.length ? ' · 책에 없는 말: ' + esc(r.unknown.join(', ')) : ''}</span>${logId ? `<span class="sp"></span><button type="button" class="btn ghost" data-ok="${logId}">맞음</button><button type="button" class="btn ghost" data-ng="${logId}">틀림</button>` : ''}</div>`;
+  d.innerHTML = h; $('chat').appendChild(d); $('chat').scrollTop = $('chat').scrollHeight; return d;
+}
+$('cf').onsubmit = async e => {
+  e.preventDefault(); const q = $('cin').value.trim(); if (!q || !bot) return; $('cin').value = '';
+  const u = document.createElement('div'); u.className = 'm u'; u.textContent = q; $('chat').appendChild(u);
+  const r = bot.answer(q);
+  const { data, error } = await sb.from('chat_logs').insert({ book_id: cur, user_id: uid, question: q, reason: r.reason, rule: r.rule || r.mode || null, top: r.top, engine_version: ChatBot.version }).select('id').single();
+  const d = addBot(r, error ? null : data.id); d.dataset.q = q; d.dataset.reason = r.reason;
+};
+document.addEventListener('click', async e => {
+  const bk = e.target.closest('[data-book]'); if (bk) { cur = bk.dataset.book; await loadBooks(); await loadAll(); return; }
+  const ok = e.target.closest('[data-ok]');
+  if (ok) { await sb.from('chat_logs').update({ feedback: '맞음' }).eq('id', ok.dataset.ok); ok.parentElement.querySelectorAll('[data-ok],[data-ng]').forEach(b => b.disabled = true); ok.textContent = '맞음 ✓'; return; }
+  const ng = e.target.closest('[data-ng]');
+  if (ng) { const m = ng.closest('.m'); fbLog = { id: ng.dataset.ng, q: m.dataset.q, el: ng }; $('fbq').textContent = `“${m.dataset.q}” — 지금 판정: ${L[m.dataset.reason]}`; $('fbe').value = m.dataset.reason === 'answered' ? 'out_of_book' : 'answered'; $('fb').showModal(); return; }
+  const tg = e.target.closest('[data-toggle]');
+  if (tg) { const c = cases.find(x => x.id == tg.dataset.toggle); await sb.from('chat_eval_cases').update({ active: !c.active }).eq('id', c.id); loadCases(); }
+});
+$('fbf').addEventListener('submit', async e => {
+  if (e.submitter?.value !== 'save') return; e.preventDefault();
+  const exp = $('fbe').value;
+  await sb.from('chat_logs').update({ feedback: '틀림', expected: exp }).eq('id', fbLog.id);
+  const { error } = await sb.from('chat_eval_cases').upsert({ book_id: cur, question: fbLog.q, expected: exp, origin: '대화 피드백' }, { onConflict: 'book_id,question' });
+  fbLog.el.parentElement.querySelectorAll('[data-ok],[data-ng]').forEach(b => b.disabled = true);
+  fbLog.el.textContent = error ? '저장 실패' : `틀림 → ${L[exp]} (평가 세트에 추가)`;
+  $('fb').close(); loadCases();
+});
+// ---- 평가 ----
+$('run').onclick = async () => {
+  const act = cases.filter(c => c.active); if (!act.length || !bot) return;
+  const res = act.map(c => ({ c, got: bot.answer(c.question) }));
+  const pass = res.filter(x => x.got.reason === x.c.expected);
+  const m = {}; RS.forEach(a => { m[a] = {}; RS.forEach(b => m[a][b] = 0); }); res.forEach(x => m[x.c.expected][x.got.reason]++);
+  $('cm').innerHTML = `<thead><tr><th>기대 \\ 판정</th>${RS.map(r => `<th>${L[r]}</th>`).join('')}<th>정확도</th></tr></thead><tbody>` +
+    RS.map(a => { const n = RS.reduce((s, b) => s + m[a][b], 0); return `<tr><th>${L[a]}</th>${RS.map(b => `<td class="${m[a][b] ? (a === b ? 'hit' : 'miss') : ''}">${m[a][b] || ''}</td>`).join('')}<td>${n ? Math.round(m[a][a] / n * 100) + '%' : '-'}</td></tr>`; }).join('') + '</tbody>';
+  const byOrigin = {}; res.forEach(x => { const o = byOrigin[x.c.origin] ||= [0, 0]; o[1]++; if (x.got.reason === x.c.expected) o[0]++; });
+  const urgentMiss = res.filter(x => x.c.expected === 'urgent' && x.got.reason !== 'urgent').length;
+  const unsafe = res.filter(x => ['clinical', 'urgent'].includes(x.c.expected) && x.got.reason === 'answered').length;
+  $('esum').innerHTML = `<span class="pill ${pass.length === res.length ? 'ok' : 'warn'}">전체 ${pass.length}/${res.length} (${Math.round(pass.length / res.length * 100)}%)</span>` +
+    Object.entries(byOrigin).map(([o, [p, n]]) => `<span class="pill">${esc(o)} ${p}/${n}</span>`).join('') +
+    `<span class="pill ${urgentMiss ? 'bad' : 'ok'}">위기 놓침 ${urgentMiss}</span><span class="pill ${unsafe ? 'bad' : 'ok'}">진료·위기 질문에 답함 ${unsafe}</span>`;
+  const fails = res.filter(x => x.got.reason !== x.c.expected);
+  $('fn').textContent = fails.length + '건';
+  $('fails').innerHTML = fails.map(x => `<li>${esc(x.c.question)} — 기대 ${pill(x.c.expected)} 판정 ${pill(x.got.reason)} <span class="note">${esc(x.got.rule || x.got.mode || '')}${x.got.unknown?.length ? ' · ' + esc(x.got.unknown.join(', ')) : ''}</span></li>`).join('') || '<li>없음</li>';
+  const by_reason = Object.fromEntries(RS.map(a => [a, { total: RS.reduce((s, b) => s + m[a][b], 0), correct: m[a][a] }]));
+  by_reason._origin = byOrigin; by_reason._urgent_miss = urgentMiss; by_reason._unsafe_answer = unsafe;
+  await sb.from('chat_eval_runs').insert({ book_id: cur, engine_version: ChatBot.version, total: res.length, passed: pass.length, by_reason, failures: fails.map(x => ({ q: x.c.question, expected: x.c.expected, got: x.got.reason, rule: x.got.rule || null })), run_by: uid });
+  loadRuns();
+};
+async function loadRuns() {
+  const { data } = await sb.from('chat_eval_runs').select('created_at,engine_version,total,passed,by_reason').eq('book_id', cur).order('created_at', { ascending: false }).limit(10);
+  $('runs').innerHTML = (data || []).map(r => `<li>${fmt(r.created_at)} · 엔진 v${esc(r.engine_version)} · ${r.passed}/${r.total} · 위기 놓침 ${r.by_reason._urgent_miss ?? '-'}</li>`).join('') || '<li>아직 없습니다.</li>';
+}
+// ---- 안내 문구 ----
+function renderPols() {
+  $('pols').innerHTML = pols.map(p => `<div style="display:grid;gap:6px"><label for="pm-${p.reason}">${pill(p.reason)}</label><textarea id="pm-${p.reason}" ${isAdmin ? '' : 'readonly'}>${esc(p.message)}</textarea>${isAdmin ? `<div class="row" style="justify-content:flex-end"><span class="note">${fmt(p.updated_at)}</span><button type="button" class="btn ghost" data-pol="${p.reason}">저장</button></div>` : ''}</div>`).join('');
+  document.querySelectorAll('[data-pol]').forEach(b => b.onclick = async () => {
+    const msg = $('pm-' + b.dataset.pol).value.trim(); const m = $('pmsg'); m.hidden = false;
+    const { error } = await sb.from('chat_policies').update({ message: msg }).eq('reason', b.dataset.pol);
+    m.className = error ? 'msg bad' : 'msg'; m.textContent = error ? '저장하지 못했습니다: ' + error.message : `${L[b.dataset.pol]} 문구를 저장했습니다.`;
+    if (!error) { const { data } = await sb.from('chat_policies').select('*').order('sort'); pols = data; makeBot(); renderPols(); }
+  });
+}
+// ---- 평가 세트 ----
+async function loadCases() {
+  const { data } = await sb.from('chat_eval_cases').select('*').eq('book_id', cur).order('id');
+  cases = data || []; renderCases();
+}
+function renderCases() {
+  const o = $('so').value; const list = cases.filter(c => !o || c.origin === o);
+  $('sn').textContent = `${cases.filter(c => c.active).length}건 사용 / 전체 ${cases.length}`;
+  $('srows').innerHTML = list.map(c => `<tr><td>${esc(c.question)}</td><td>${pill(c.expected)}</td><td><span class="note">${esc(c.origin)}</span></td><td><button type="button" class="btn ghost" data-toggle="${c.id}">${c.active ? '사용 중' : '빠짐'}</button></td></tr>`).join('') || '<tr><td colspan="4" class="note">없습니다.</td></tr>';
+}
+$('so').onchange = renderCases;
+$('sf').onsubmit = async e => {
+  e.preventDefault(); const q = $('sq').value.trim(); if (!q) return;
+  const { error } = await sb.from('chat_eval_cases').insert({ book_id: cur, question: q, expected: $('se').value, origin: '직접 추가' });
+  $('smsg').hidden = !error; if (error) { $('smsg').textContent = error.code === '23505' ? '이미 있는 질문입니다.' : error.message; return; }
+  $('sq').value = ''; loadCases();
+};
+requireMember(async (s, prof) => { uid = s.user.id; isAdmin = prof.role === 'admin'; await loadBooks(); await loadAll(); });
+</script>
+</body></html>
