@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KMA 용어 대조</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@700&display=swap">
+<link rel="stylesheet" href="app.css?v=5">
+<style>.prog{height:10px;border-radius:5px;background:var(--line);overflow:hidden;display:flex}.prog i{display:block;height:100%}
+.krow input{width:9em}</style>
+</head><body>
+<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="index.html">홈</a><a href="glossary.html">공용 용어집</a><a href="kma.html" aria-current="page">KMA 대조</a><a href="guides.html">스타일 가이드</a><a href="rights.html">권리 게이트</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
+<main>
+  <div>
+    <h1>KMA 용어 대조</h1>
+    <p class="muted" style="margin:0">공용 용어집의 한글 용어를 대한의사협회 의학용어집(제6.1판)과 대조합니다. KMA 용어집은 저작권이 있어 통째로 복사하지 않습니다. 편집자가 용어마다 <a href="https://term.kma.org" target="_blank" rel="noopener">KMA 의학용어 검색</a>에서 찾아본 결과를 기록하고, 출판사가 사용 허락을 받은 자료가 있으면 그때만 가져와 자동 대조합니다.</p>
+  </div>
+
+  <section class="card" aria-labelledby="p-h">
+    <h2 id="p-h">진행 상황</h2>
+    <div class="prog" id="bar" aria-hidden="true"></div>
+    <div class="row" id="prog"></div>
+  </section>
+
+  <section class="card" aria-labelledby="d-h">
+    <h2 id="d-h">KMA와 다른 용어 <span id="dn" class="pill"></span></h2>
+    <p class="note" style="margin:0">확인 결과 KMA 표준과 다른 용어입니다. "표준어로 바꾸기"를 누르면 용어집의 한글을 KMA 표준으로 바꾸고, 지금 한글은 옛 용어로 옮깁니다(공용 용어집 기록에 남음).</p>
+    <div class="tbl"><table><thead><tr><th>용어집 한글</th><th>영문</th><th>KMA 표준</th><th>확인</th><th></th></tr></thead><tbody id="diff"></tbody></table></div>
+  </section>
+
+  <section class="card" aria-labelledby="t-h">
+    <div class="row" style="justify-content:space-between">
+      <h2 id="t-h">대조할 용어 <span id="tn" class="pill"></span></h2>
+      <div class="row"><label class="note" for="src">출처</label><select id="src"><option value="">전체</option></select>
+        <label class="note" for="flt">보기</label><select id="flt"><option value="todo">미확인만</option><option value="hold">보류만</option><option value="all">전체</option></select></div>
+    </div>
+    <p class="note" style="margin:0">① "KMA에서 찾기"를 누르면 KMA 검색 창이 열리고 영문이 복사됩니다. 검색 칸에 붙여 넣어 찾으세요. ② KMA 표준 한글을 적으면 일치·불일치가 자동으로 정해집니다. 없으면 "KMA 없음", 판단이 어려우면 "보류".</p>
+    <div class="tbl" style="max-height:60vh"><table><thead><tr><th>한글</th><th>영문</th><th>KMA 표준 한글</th><th>결과</th></tr></thead><tbody id="rows"></tbody></table></div>
+    <div id="m" class="msg" hidden></div>
+  </section>
+
+  <section class="card" aria-labelledby="i-h" id="imp" hidden>
+    <h2 id="i-h">허락 자료 가져오기 (관리자)</h2>
+    <p class="note" style="margin:0">KMA 또는 보건의료용어표준 자료를 <b>사용 허락을 받은 경우에만</b> 가져옵니다. CSV 형식: 영문,한글[,판]. 가져온 뒤 "자동 대조"를 누르면 수동 확인하지 않은 용어를 대조합니다.</p>
+    <div class="form" style="grid-template-columns:7em 1fr">
+      <label for="lic">허락 근거</label><input id="lic" placeholder="예: KMA 의학용어 사용 허락 공문 2026-○○호">
+      <label for="csv">CSV 파일</label><input id="csv" type="file" accept=".csv,text/csv">
+    </div>
+    <div class="row"><button class="btn" id="doimp" disabled>가져오기</button><button class="btn ghost" id="auto">자동 대조</button><span id="imsg" class="muted"></span></div>
+  </section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="config.js?v=2"></script>
+<script>
+const $ = id => document.getElementById(id);
+let terms = [], last = {}, isAdmin = false;
+function msg(t, bad) { const m = $('m'); m.hidden = false; m.textContent = t; m.className = 'msg' + (bad ? ' bad' : ''); clearTimeout(msg.t); msg.t = setTimeout(() => m.hidden = true, 4000); }
+async function loadAll() {
+  const all = []; for (let f = 0; ; f += 1000) { const { data } = await sb.from('glossary_terms').select('id,ko,en,prev_ko,kma,source,status').order('ko').range(f, f + 999); all.push(...(data || [])); if (!data || data.length < 1000) break; }
+  terms = all.filter(t => t.status !== '사용 금지');
+  const ch = []; for (let f = 0; ; f += 1000) { const { data } = await sb.from('kma_checks').select('*').order('checked_at').range(f, f + 999); ch.push(...(data || [])); if (!data || data.length < 1000) break; }
+  last = {}; ch.forEach(c => last[c.term_id] = c);
+  const srcs = [...new Set(terms.map(t => t.source).filter(Boolean))];
+  if ($('src').options.length === 1) $('src').innerHTML += srcs.map(s => `<option>${esc(s)}</option>`).join('');
+  render();
+}
+function render() {
+  const n = terms.length, c = { '일치': 0, '불일치': 0, 'KMA 없음': 0, '보류': 0 };
+  terms.forEach(t => { const r = last[t.id]?.result; if (r) c[r]++; });
+  const done = c['일치'] + c['불일치'] + c['KMA 없음'];
+  $('bar').innerHTML = `<i style="width:${c['일치'] / n * 100}%;background:var(--ok)"></i><i style="width:${c['불일치'] / n * 100}%;background:var(--bad)"></i><i style="width:${c['KMA 없음'] / n * 100}%;background:var(--muted)"></i><i style="width:${c['보류'] / n * 100}%;background:var(--warn)"></i>`;
+  $('prog').innerHTML = `<span class="pill">전체 ${n}</span><span class="pill ok">일치 ${c['일치']}</span><span class="pill bad">불일치 ${c['불일치']}</span><span class="pill">KMA 없음 ${c['KMA 없음']}</span><span class="pill warn">보류 ${c['보류']}</span><span class="pill">미확인 ${n - done - c['보류']}</span>`;
+  const diffs = terms.filter(t => last[t.id]?.result === '불일치');
+  $('dn').textContent = diffs.length;
+  $('diff').innerHTML = diffs.map(t => { const k = last[t.id]; return `<tr><td>${esc(t.ko)}</td><td>${esc(t.en)}</td><td><b>${esc(k.kma_ko)}</b></td><td class="note">${new Date(k.checked_at).toLocaleDateString('ko-KR')} · ${esc(k.method)}${k.note ? ' · ' + esc(k.note) : ''}</td><td>${k.kma_ko && k.kma_ko !== t.ko ? `<button class="btn ghost" data-adopt="${t.id}">표준어로 바꾸기</button>` : '<span class="note">반영됨</span>'}</td></tr>`; }).join('') || '<tr><td colspan="5" class="note">없습니다.</td></tr>';
+  const src = $('src').value, f = $('flt').value;
+  const list = terms.filter(t => (!src || t.source === src) && (f === 'all' || (f === 'todo' && !last[t.id]) || (f === 'hold' && last[t.id]?.result === '보류')));
+  $('tn').textContent = list.length;
+  $('rows').innerHTML = list.slice(0, 300).map(t => { const k = last[t.id];
+    return `<tr class="krow" data-row="${t.id}"><td><b>${esc(t.ko)}</b>${t.prev_ko ? `<br><span class="note">옛: ${esc(t.prev_ko)}</span>` : ''}</td><td>${esc(t.en || '')}<br>${t.en ? `<button class="btn ghost" data-find="${esc(t.en.replace(/\s*\(.*?\)\s*/g, ' ').trim())}" style="margin-top:4px">KMA에서 찾기</button>` : ''}</td>
+      <td><input data-ko="${t.id}" aria-label="${esc(t.ko)}의 KMA 표준 한글" placeholder="${esc(t.ko)}" value="${esc(k?.kma_ko || '')}"><br><input data-note="${t.id}" aria-label="메모" placeholder="메모(선택)" style="margin-top:4px"></td>
+      <td class="row">${['일치', '불일치', 'KMA 없음', '보류'].map(r => `<button class="btn ${k?.result === r ? '' : 'ghost'}" data-res="${t.id}" data-v="${r}">${r}</button>`).join('')}</td></tr>`; }).join('') + (list.length > 300 ? '<tr><td colspan="4" class="note">앞의 300개만 보입니다. 출처로 좁히세요.</td></tr>' : '');
+}
+async function record(id, result) {
+  const t = terms.find(x => x.id === id), kko = document.querySelector(`[data-ko="${id}"]`).value.trim(), note = document.querySelector(`[data-note="${id}"]`).value.trim() || null;
+  if (result === '불일치' && !kko) return msg('불일치일 때는 KMA 표준 한글을 적어 주세요.', true);
+  const { data, error } = await sb.from('kma_checks').insert({ term_id: id, query_en: t.en, kma_ko: kko || (result === '일치' ? t.ko : null), result, note }).select().single();
+  if (error) return msg('기록하지 못했습니다: ' + error.message, true);
+  last[id] = data; msg(`'${t.ko}' ${result}로 기록했습니다.`); render();
+}
+document.addEventListener('click', async e => {
+  const f = e.target.closest('[data-find]');
+  if (f) { try { await navigator.clipboard.writeText(f.dataset.find); msg(`'${f.dataset.find}'를 복사했습니다. KMA 검색 칸에 붙여 넣으세요.`); } catch { msg(`검색할 영문: ${f.dataset.find}`); } window.open('https://term.kma.org/', 'kma', 'noopener'); }
+  const r = e.target.closest('[data-res]'); if (r) record(+r.dataset.res, r.dataset.v);
+  const a = e.target.closest('[data-adopt]');
+  if (a) { const t = terms.find(x => x.id == a.dataset.adopt), k = last[t.id];
+    const prev = [t.ko, ...(t.prev_ko || '').split(/[,，]/).map(s => s.trim()).filter(s => s && s !== k.kma_ko)].filter((v, i, s) => s.indexOf(v) === i).join(', ');
+    const { error } = await sb.from('glossary_terms').update({ ko: k.kma_ko, prev_ko: prev, kma: true }).eq('id', t.id);
+    if (error) return msg(error.message, true); t.ko = k.kma_ko; t.prev_ko = prev;
+    await sb.from('kma_checks').insert({ term_id: t.id, query_en: t.en, kma_ko: k.kma_ko, result: '일치', note: '표준어로 바꿈' }).select().single().then(({ data }) => { if (data) last[t.id] = data; });
+    msg(`'${prev.split(',')[0]}' → '${k.kma_ko}'로 바꿨습니다.`); render(); }
+});
+document.addEventListener('input', e => { const i = e.target.closest('[data-ko]'); if (!i) return; const t = terms.find(x => x.id == i.dataset.ko);
+  i.style.borderColor = i.value.trim() ? (i.value.trim() === t.ko ? 'var(--ok)' : 'var(--bad)') : ''; });
+document.addEventListener('keydown', e => { const i = e.target.closest('[data-ko]'); if (i && e.key === 'Enter') { const t = terms.find(x => x.id == i.dataset.ko); const v = i.value.trim(); if (v) record(t.id, v === t.ko ? '일치' : '불일치'); } });
+$('src').onchange = $('flt').onchange = render;
+$('csv').onchange = () => $('doimp').disabled = !$('csv').files[0];
+$('doimp').onclick = async () => {
+  const lic = $('lic').value.trim(); if (!lic) return $('imsg').textContent = '허락 근거를 적어야 가져올 수 있습니다.';
+  const rows = (await $('csv').files[0].text()).split(/\r?\n/).map(l => l.split(',').map(s => s.trim().replace(/^"|"$/g, ''))).filter(r => r.length >= 2 && r[0] && r[1] && !/^(en|영문)$/i.test(r[0]));
+  for (let i = 0; i < rows.length; i += 500) { const { error } = await sb.from('kma_reference').insert(rows.slice(i, i + 500).map(r => ({ en: r[0], ko: r[1], edition: r[2] || null, license_note: lic }))); if (error) return $('imsg').textContent = error.message; }
+  $('imsg').textContent = `${rows.length}개를 가져왔습니다.`;
+};
+$('auto').onclick = async () => { const { data, error } = await sb.rpc('kma_auto_match'); $('imsg').textContent = error ? error.message : `자동 대조: 일치 ${data.match}, 불일치 ${data.diff}`; loadAll(); };
+requireMember(async (s, prof) => { isAdmin = prof.role === 'admin'; $('imp').hidden = !isAdmin; await loadAll(); });
+</script>
+</body></html>
