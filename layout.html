@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>학습서 조판</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@700&display=swap">
+<link rel="stylesheet" href="app.css?v=5">
+<style>
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:20px}
+#fr{width:100%;height:720px;border:1px solid var(--line);border-radius:8px;background:#e9ecf1}
+.prog{height:8px;border-radius:4px;background:var(--accent-soft);overflow:hidden}.prog>i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
+</style>
+</head><body>
+<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="index.html">홈</a><a href="figures.html">그림 대장</a><a href="figreview.html">그림 원본 검수</a><a href="layout.html" aria-current="page">학습서 조판</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
+<main>
+  <div>
+    <h1>학습서 조판</h1>
+    <p class="muted" style="margin:0">브라우저 안에서 실제 쪽을 나눠 보고(Paged.js), 그림이 <b>처음 인용한 문단과 같은 쪽</b>(안 되면 같은 펼침면)에 오도록 그림 자리와 크기를 정합니다. 학습서 템플릿은 펼침면 <b>바깥쪽에 메모 칸</b>(왼쪽 쪽=왼쪽, 오른쪽 쪽=오른쪽)을 둡니다. 결과는 브라우저 인쇄로 PDF 저장할 수 있습니다.</p>
+  </div>
+  <div class="row" role="tablist" id="books" aria-label="책 선택"></div>
+
+  <div class="grid2">
+    <section class="card" aria-labelledby="p-h">
+      <h2 id="p-h">원고와 그림</h2>
+      <div id="pinfo" class="note"></div>
+      <div id="padmin" class="row" hidden><label class="note" for="pf">조판 원고 패키지(.json) 올리기</label><input type="file" id="pf" accept=".json,application/json"></div>
+      <div class="row"><label class="note" for="ff">수정본 그림 올리기(여러 개 · 파일 이름으로 연결)</label><input type="file" id="ff" accept="image/*" multiple></div>
+      <div id="pmsg" class="msg" hidden></div>
+    </section>
+    <section class="card" aria-labelledby="s-h">
+      <h2 id="s-h">조판 설정</h2>
+      <div class="form">
+        <label for="tpl">템플릿</label><select id="tpl"><option value="학습서">학습서 (바깥쪽 메모 칸)</option><option value="일반">일반</option></select>
+        <label for="size">판형</label><select id="size"></select>
+        <label for="theme">디자인</label><select id="theme"><option value="medical">메디컬</option><option value="classic">클래식</option><option value="modern">모던</option><option value="health">헬스</option></select>
+        <label>그림 규칙</label><span class="note">같은 쪽 우선 → 같은 펼침면. 자리 ±4블록, 크기는 95mm·78mm까지만 줄임(레이블 판독성), 절 제목은 넘지 않음</span>
+      </div>
+      <div class="row"><button id="save" class="btn ghost" type="button">설정 저장</button><button id="run" class="btn" type="button">그림 배치 계산</button><button id="prev" class="btn ghost" type="button">현재 배치로 미리보기</button><button id="print" class="btn ghost" type="button" disabled>인쇄·PDF 저장</button></div>
+      <div class="prog" aria-hidden="true"><i id="bar"></i></div>
+      <div id="rmsg" class="note" aria-live="polite"></div>
+    </section>
+  </div>
+
+  <section class="card" aria-labelledby="r-h">
+    <div class="row" style="justify-content:space-between"><h2 id="r-h">그림 배치 결과</h2><div id="sum" class="row"></div></div>
+    <div class="tbl"><table><thead><tr><th>그림</th><th>결과</th><th>그림 쪽</th><th>인용 쪽</th><th>자리 이동</th><th>크기</th><th>앞쪽 아래 빈칸</th></tr></thead><tbody id="rows"><tr><td colspan="7" class="note">아직 계산하지 않았습니다.</td></tr></tbody></table></div>
+    <details><summary class="note">계산 이력</summary><ol id="runs" class="note"></ol></details>
+  </section>
+
+  <section class="card" aria-labelledby="v-h">
+    <h2 id="v-h">미리보기</h2>
+    <iframe id="fr" title="조판 미리보기"></iframe>
+  </section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="config.js?v=2"></script>
+<script src="layoutengine.js?v=1"></script>
+<script>
+const $ = id => document.getElementById(id);
+let books = [], cur = null, pkgRow = null, lay = null, figs = [], images = {}, lastState = null, uid = null, isAdmin = false, running = false;
+const fmt = t => new Date(t).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' });
+
+async function loadBooks() {
+  const { data } = await sb.from('books').select('id,title').order('title');
+  books = data || []; if (!cur) cur = (books.find(b => b.title === '사람해부학') || books[0])?.id;
+  $('books').innerHTML = books.map(b => `<button role="tab" class="btn ${b.id === cur ? '' : 'ghost'}" aria-selected="${b.id === cur}" data-book="${b.id}">${esc(b.title)}</button>`).join('');
+}
+async function loadAll() {
+  const [p, l, f] = await Promise.all([
+    sb.from('layout_packages').select('*').eq('book_id', cur).maybeSingle(),
+    sb.from('book_layouts').select('*').eq('book_id', cur).maybeSingle(),
+    sb.from('figures').select('id,no,source_files').eq('book_id', cur)]);
+  pkgRow = p.data; lay = l.data || { template: '학습서', size: 'b5', theme: 'medical', memo: 'outer' }; figs = f.data || [];
+  $('padmin').hidden = !isAdmin; lastState = null; $('print').disabled = true;
+  const pkg = pkgRow?.package;
+  $('size').innerHTML = pkg ? Object.entries(pkg.sizes).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('') : '<option value="b5">4×6배판</option>';
+  $('tpl').value = lay.template; $('size').value = lay.size; $('theme').value = lay.theme;
+  await loadImages();
+  const n = pkg ? pkg.chapters.reduce((s, c) => s + c.blocks.length, 0) : 0;
+  const want = pkg?.figure_files || [], have = want.filter(f => images[f]);
+  $('pinfo').innerHTML = pkg ? `패키지 v${pkgRow.version} · ${fmt(pkgRow.uploaded_at)} · ${pkg.chapters.map(c => c.num + '장 ' + esc(c.title)).join(', ')} · 블록 ${n}개 · 그림 파일 ${have.length}/${want.length} (수정본 ${have.filter(f => images[f].variant === '수정본').length}, 원본 ${have.filter(f => images[f].variant === '원본').length})` : '이 책은 조판 원고 패키지가 없습니다. 관리자가 <code>플랫폼도구/layout_package.py</code>로 만든 파일을 올려야 합니다.';
+  ['run', 'prev'].forEach(id => $(id).disabled = !pkg || have.length < want.length);
+  if (pkg && have.length < want.length) $('rmsg').textContent = `그림 파일이 모자랍니다: ${want.filter(f => !images[f]).join(', ')}`;
+  await loadRuns();
+}
+async function loadImages() {
+  images = {}; if (!figs.length) return;
+  const { data } = await sb.from('figure_images').select('*').in('figure_id', figs.map(f => f.id));
+  const rows = (data || []).sort((a, b) => (a.variant === '수정본' ? 1 : 0) - (b.variant === '수정본' ? 1 : 0)); // 수정본이 원본을 덮음
+  const paths = rows.map(r => r.storage_path);
+  const { data: urls } = paths.length ? await sb.storage.from('figure-images').createSignedUrls(paths, 3600) : { data: [] };
+  rows.forEach((r, i) => { if (urls?.[i]?.signedUrl) images[r.filename] = { url: urls[i].signedUrl, w: r.natural_w, h: r.natural_h, variant: r.variant }; });
+}
+async function loadRuns() {
+  const { data } = await sb.from('layout_runs').select('created_at,pages,trials,seconds,summary,settings,engine').eq('book_id', cur).order('created_at', { ascending: false }).limit(10);
+  $('runs').innerHTML = (data || []).map(r => `<li>${fmt(r.created_at)} · ${r.pages}쪽 · ${esc(Object.entries(r.summary).map(([k, v]) => k + ' ' + v).join(', '))} · 시도 ${r.trials}회 · ${r.seconds}초 · ${esc(r.settings.template)}/${esc(r.settings.size)} · ${esc(r.engine)}</li>`).join('') || '<li>아직 없습니다.</li>';
+}
+const opts = () => ({ size: $('size').value, theme: $('theme').value, memo: $('tpl').value === '학습서' ? 'outer' : 'none', images });
+function showRows(final, report) {
+  const rep = Object.fromEntries((report || []).map(r => [r.figure, r]));
+  const sum = {}; final.forEach(f => sum[f.same] = (sum[f.same] || 0) + 1);
+  const cls = { '같은 쪽': 'ok', '같은 펼침면': '', '떨어짐': 'bad', '인용 없음': 'warn', '빈칸 60mm 넘음': 'warn' };
+  $('rows').innerHTML = final.map(f => { const r = rep[f.figure] || {};
+    return `<tr><td>그림 ${esc(f.figure)}</td><td><span class="pill ${cls[f.same] ?? ''}">${esc(f.same || '-')}</span></td><td>${f.fig_page ?? '-'}</td><td>${f.cite_page ?? '-'}</td><td>${r.shift ? (r.shift > 0 ? '+' : '') + r.shift + '블록' : '-'}</td><td>${esc(r.size || '원래 크기')}</td><td>${f.gap_before_mm != null ? (f.gap_before_mm > 60 ? `<span class="pill warn" title="앞쪽 아래가 크게 비었습니다. S-04 수동 배치에서 조정">${f.gap_before_mm}mm</span>` : f.gap_before_mm + 'mm') : '-'}</td></tr>`; }).join('');
+  const big = final.filter(f => f.gap_before_mm > 60).length; if (big) sum['빈칸 60mm 넘음'] = big;
+  $('sum').innerHTML = Object.entries(sum).map(([k, v]) => `<span class="pill ${cls[k] ?? ''}">${esc(k)} ${v}</span>`).join('');
+  return sum;
+}
+$('run').onclick = async () => {
+  if (running) return; running = true; ['run', 'prev', 'save'].forEach(id => $(id).disabled = true);
+  const pkg = pkgRow.package, nfig = pkg.chapters.reduce((s, c) => s + c.blocks.filter(b => b.fig).length, 0), t0 = Date.now(); const done = new Set();
+  try {
+    const r = await LayoutEngine.optimize(pkg, opts(), $('fr'), p => { done.add(p.figure); $('bar').style.width = Math.round(done.size / nfig * 100) + '%'; $('rmsg').textContent = `그림 ${p.figure} 배치 시험 중 · 쪽 나누기 ${p.trials}회 · ${Math.round((Date.now() - t0) / 1000)}초`; });
+    const secs = Math.round((Date.now() - t0) / 1000); $('bar').style.width = '100%';
+    const sum = showRows(r.final, r.report); lastState = r.state;
+    $('rmsg').textContent = `완료: ${r.pages}쪽 · 쪽 나누기 ${r.trials}회 · ${secs}초. 미리보기에 최종 배치가 나와 있습니다.`;
+    await sb.from('layout_runs').insert({ book_id: cur, package_version: pkgRow.version, settings: { template: $('tpl').value, size: $('size').value, theme: $('theme').value }, pages: r.pages, trials: r.trials, seconds: secs, summary: sum, figures: r.final.map(f => ({ ...f, ...(r.report.find(x => x.figure === f.figure) || {}) })), state: r.state, engine: 'layoutengine ' + LayoutEngine.version + ' / pagedjs 0.4.3', run_by: uid });
+    $('print').disabled = false; await loadRuns();
+  } catch (e) { $('rmsg').textContent = '계산하지 못했습니다: ' + e.message; }
+  running = false; ['run', 'prev', 'save'].forEach(id => $(id).disabled = false);
+};
+$('prev').onclick = async () => {
+  $('rmsg').textContent = '쪽 나누는 중…';
+  try { const m = await LayoutEngine.render(LayoutEngine.buildHtml(pkgRow.package, opts(), lastState || {}), $('fr'));
+    const final = pkgRow.package.chapters.flatMap(c => c.blocks.filter(b => b.fig).map(b => ({ figure: b.fig, ...LayoutEngine.scoreFig(b.fig, m)[1] })));
+    showRows(final, []); $('rmsg').textContent = `${m.pages}쪽 (${lastState ? '계산한 배치' : '기본 배치: 그림은 첫 인용 문단 뒤'})`; $('print').disabled = false;
+  } catch (e) { $('rmsg').textContent = '미리보기 실패: ' + e.message; }
+};
+$('print').onclick = () => $('fr').contentWindow.print();
+$('save').onclick = async () => {
+  const row = { book_id: cur, template: $('tpl').value, size: $('size').value, theme: $('theme').value, memo: $('tpl').value === '학습서' ? 'outer' : 'none', updated_by: uid, updated_at: new Date().toISOString() };
+  const { error } = await sb.from('book_layouts').upsert(row); $('rmsg').textContent = error ? '저장 실패: ' + error.message : '설정을 저장했습니다.';
+};
+$('pf').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return; const m = $('pmsg'); m.hidden = false;
+  try { const j = JSON.parse(await f.text());
+    if (j.format !== 'ebook-layout-package/1' || !Array.isArray(j.chapters)) throw new Error('조판 원고 패키지 형식이 아닙니다');
+    const b = books.find(x => x.id === cur); if (j.book_title !== b.title) throw new Error(`파일의 책(${j.book_title})이 선택한 책(${b.title})과 다릅니다`);
+    const { error } = await sb.from('layout_packages').upsert({ book_id: cur, package: j, version: (pkgRow?.version || 0) + 1, uploaded_by: uid, uploaded_at: new Date().toISOString() });
+    if (error) throw error; m.className = 'msg'; m.textContent = `패키지를 올렸습니다: 블록 ${j.chapters.reduce((s, c) => s + c.blocks.length, 0)}개`; await loadAll(); $('pmsg').hidden = false;
+  } catch (err) { m.className = 'msg bad'; m.textContent = '올리지 못했습니다: ' + err.message; }
+  e.target.value = '';
+};
+$('ff').onchange = async e => {
+  const files = [...e.target.files]; const m = $('pmsg'); m.hidden = false; m.className = 'msg'; let ok = 0; const miss = [];
+  for (const [i, f] of files.entries()) {
+    m.textContent = `수정본 올리는 중 ${i + 1}/${files.length}`;
+    const t = figs.find(x => (x.source_files || []).includes(f.name)); if (!t) { miss.push(f.name); continue; }
+    const bmp = await createImageBitmap(f); const w = bmp.width, h = bmp.height; bmp.close();
+    const path = `${cur}/${t.id}/fixed/${f.name.replace(/[^\w.-]/g, '_')}`;
+    const r = await sb.storage.from('figure-images').upload(path, f, { upsert: true, contentType: f.type || 'image/png' }); if (r.error) { miss.push(f.name); continue; }
+    const r2 = await sb.from('figure_images').upsert({ figure_id: t.id, filename: f.name, variant: '수정본', storage_path: path, natural_w: w, natural_h: h, bytes: f.size, uploaded_by: uid, uploaded_at: new Date().toISOString() }, { onConflict: 'figure_id,filename,variant' });
+    if (r2.error) { miss.push(f.name); continue; } ok++;
+  }
+  m.className = miss.length ? 'msg bad' : 'msg'; m.textContent = `수정본 ${ok}개를 올렸습니다.` + (miss.length ? ` 연결하지 못한 파일: ${miss.join(', ')}` : '');
+  e.target.value = ''; await loadAll(); $('pmsg').hidden = false;
+};
+document.addEventListener('click', async e => { const bk = e.target.closest('[data-book]'); if (bk && !running) { cur = bk.dataset.book; await loadBooks(); await loadAll(); } });
+requireMember(async (s, prof) => { uid = s.user.id; isAdmin = prof.role === 'admin'; await loadBooks(); await loadAll(); });
+</script>
+</body></html>
