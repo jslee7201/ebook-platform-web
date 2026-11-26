@@ -153,7 +153,7 @@ async function loadList() {
     <td>${m.pages ?? '-'}</td>
     <td><span class="pill ${['추출 가능', 'OCR 완료'].includes(m.text_status) ? 'ok' : 'warn'}">${esc(m.text_status)}</span>${m.ocr_pages ? `<br><span class="note">OCR ${m.ocr_pages}쪽</span>` : ''}</td>
     <td><select data-req="${m.id}" aria-label="추출 가능한 원본 요청 상태">${['불필요', '요청 필요', '요청함', '받음'].map(s => `<option ${s === m.original_request ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
-    <td class="row"><button class="btn ghost" data-view="${m.id}" data-name="${esc(m.filename)}">글자 보기</button><button class="btn ghost" data-dl="${esc(m.storage_path)}">원본</button></td></tr>`).join('') || '<tr><td colspan="6" class="note">아직 보관된 원고가 없습니다.</td></tr>';
+    <td class="row"><button class="btn ghost" data-view="${m.id}" data-name="${esc(m.filename)}">글자 보기</button><button class="btn ghost" data-dl="${esc(m.storage_path)}">원본</button>${(m.mime||"").includes("pdf") ? `<a class="btn ghost" href="convert.html?ms=${m.id}">변환 확인</a>` : ""}</td></tr>`).join('') || '<tr><td colspan="6" class="note">아직 보관된 원고가 없습니다.</td></tr>';
 }
 
 document.addEventListener('click', async e => {

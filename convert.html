@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>변환 확인</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@700&display=swap">
+<link rel="stylesheet" href="app.css?v=5">
+<style>
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:900px){.split{grid-template-columns:minmax(0,1fr)}}
+.pagewrap{position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+.pagewrap canvas{display:block;width:100%;height:auto}
+.box{position:absolute;border:2px solid;border-radius:3px;cursor:pointer}
+.box span{position:absolute;top:-1px;left:-1px;font:600 11px/1 var(--body);padding:2px 4px;color:#fff}
+.t-para{border-color:#2b7a8c}.t-para span{background:#2b7a8c}
+.t-heading{border-color:#7a3fa0}.t-heading span{background:#7a3fa0}
+.t-caption{border-color:#b26a00}.t-caption span{background:#b26a00}
+.t-label{border-color:#999;border-style:dashed}.t-label span{background:#999}
+.t-list{border-color:#2f7d4f}.t-list span{background:#2f7d4f}
+.t-drop{border-color:#c0392b;border-style:dotted}.t-drop span{background:#c0392b}
+.box.sel{box-shadow:0 0 0 3px rgba(255,200,0,.7)}
+.blk{border:1px solid var(--line);border-radius:8px;padding:10px;display:grid;gap:6px;background:var(--surface)}
+.blk.sel{outline:2px solid var(--accent)}
+.blk textarea{min-height:60px;font-size:14px}
+.blk .row{gap:6px}
+.flag{font-size:12px;color:var(--warn)}
+</style>
+</head><body>
+<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="index.html">홈</a><a href="manuscripts.html">원고 입력</a><a href="glossary.html">공용 용어집</a><a href="rights.html">권리 게이트</a><a href="figures.html">그림 대장</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
+<main>
+  <div class="row" style="justify-content:space-between">
+    <div><h1>변환 확인</h1><p class="muted" style="margin:0" id="sub">원고를 고르세요.</p></div>
+    <div class="row"><label class="note" for="ms">원고</label><select id="ms"></select></div>
+  </div>
+  <section class="card">
+    <div class="row">
+      <button class="btn" id="run">변환 실행</button>
+      <button class="btn ghost" id="save" disabled>저장</button>
+      <span id="msg" class="muted"></span>
+    </div>
+    <div class="row" id="stats"></div>
+    <p class="note" style="margin:0">2단 읽기 순서, 줄 단위로 끊긴 문단 잇기, 캡션·그림 속 글자 분리를 자동으로 한 뒤, 사람이 쪽마다 확인합니다. 그림 속 글자(회색 점선)는 본문에서 빠집니다. 노란 표시는 사람이 봐야 할 곳(줄끝 붙임, 쪽 넘김 잇기 등)입니다.</p>
+  </section>
+  <div class="row" id="pager"></div>
+  <div class="split">
+    <div class="pagewrap" id="pw"><canvas id="cv"></canvas></div>
+    <div style="display:grid;gap:8px" id="list"></div>
+  </div>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="config.js?v=2"></script>
+<script src="pdfconvert.js?v=2"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const $ = id => document.getElementById(id);
+const TN = { heading: '제목', para: '본문', caption: '캡션', label: '그림 속 글자', list: '목록', drop: '버림' };
+let msRow = null, pdf = null, blocks = [], page = 1, sel = null, dirty = false, reviewed = new Set();
+
+async function loadMsList() {
+  const { data } = await sb.from('manuscripts').select('id,filename,kind,pages,convert_status,mime').order('created_at', { ascending: false });
+  const pdfs = (data || []).filter(m => (m.mime || '').includes('pdf') || /\.pdf$/i.test(m.filename));
+  $('ms').innerHTML = pdfs.map(m => `<option value="${m.id}">${esc(m.filename)} · ${esc(m.kind)} · ${esc(m.convert_status)}</option>`).join('') || '<option value="">PDF 원고가 없습니다</option>';
+  const want = new URLSearchParams(location.search).get('ms'); if (want && pdfs.some(m => m.id === want)) $('ms').value = want;
+  if ($('ms').value) openMs($('ms').value);
+}
+async function openMs(id) {
+  const { data: m } = await sb.from('manuscripts').select('*').eq('id', id).single(); msRow = m;
+  reviewed = new Set(m.reviewed_pages || []);
+  $('sub').textContent = `${m.filename} · ${m.pages || '?'}쪽 · 상태 ${m.convert_status}`;
+  $('msg').textContent = '원본 불러오는 중…';
+  const { data: f, error } = await sb.storage.from('manuscripts').download(m.storage_path);
+  if (error) { $('msg').textContent = '원본을 불러오지 못했습니다: ' + error.message; return; }
+  pdf = await pdfjsLib.getDocument({ data: await f.arrayBuffer() }).promise;
+  const { data: bl } = await sb.from('structured_blocks').select('*').eq('manuscript_id', id).order('seq');
+  blocks = (bl || []).map(b => ({ ...b })); page = 1; dirty = false; $('save').disabled = true;
+  $('msg').textContent = blocks.length ? '저장된 변환 결과를 불러왔습니다.' : '아직 변환하지 않았습니다. "변환 실행"을 누르세요.';
+  stats(); draw();
+}
+function stats() {
+  const c = blocks.reduce((m, b) => (m[b.type] = (m[b.type] || 0) + 1, m), {}), fl = blocks.filter(b => b.flags?.length).length;
+  $('stats').innerHTML = Object.entries(TN).filter(([k]) => c[k]).map(([k, v]) => `<span class="pill">${v} ${c[k]}</span>`).join('') +
+    (fl ? `<span class="pill warn">확인 표시 ${fl}</span>` : '') + (pdf ? `<span class="pill ${reviewed.size === pdf.numPages ? 'ok' : ''}">확인한 쪽 ${reviewed.size} / ${pdf.numPages}</span>` : '');
+  if (!pdf) return;
+  $('pager').innerHTML = Array.from({ length: pdf.numPages }, (_, i) => i + 1).map(n => `<button class="btn ${n === page ? '' : 'ghost'}" data-page="${n}" aria-label="${n}쪽">${n}${reviewed.has(n) ? ' ✓' : ''}</button>`).join('');
+}
+async function draw() {
+  if (!pdf) return;
+  const pg = await pdf.getPage(page), vp = pg.getViewport({ scale: 1.6 }), cv = $('cv');
+  cv.width = vp.width; cv.height = vp.height;
+  await pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+  [...$('pw').querySelectorAll('.box')].forEach(e => e.remove());
+  const pb = blocks.filter(b => b.page === page);
+  pb.forEach(b => { if (!b.bbox) return; const d = document.createElement('div'); d.className = `box t-${b.type}${sel === b.seq ? ' sel' : ''}`; d.dataset.seq = b.seq;
+    Object.assign(d.style, { left: b.bbox.x * 100 + '%', top: b.bbox.y * 100 + '%', width: b.bbox.w * 100 + '%', height: b.bbox.h * 100 + '%' });
+    d.innerHTML = `<span>${pb.indexOf(b) + 1}</span>`; $('pw').appendChild(d); });
+  $('list').innerHTML = (pb.length ? pb.map((b, i) => `<div class="blk${sel === b.seq ? ' sel' : ''}" data-blk="${b.seq}">
+      <div class="row"><b>${i + 1}</b><select data-type="${b.seq}" aria-label="블록 ${i + 1} 종류">${Object.entries(TN).map(([k, v]) => `<option value="${k}" ${k === b.type ? 'selected' : ''}>${v}</option>`).join('')}</select>
+        <button class="btn ghost" data-merge="${b.seq}" ${i === 0 ? 'disabled' : ''} title="앞 블록에 합치기">위와 합치기</button>
+        <button class="btn ghost" data-split="${b.seq}" title="글자 커서 위치에서 나누기">나누기</button></div>
+      ${b.flags?.length ? `<div class="flag">⚑ ${esc(b.flags.join(' · '))}</div>` : ''}
+      <textarea data-text="${b.seq}" aria-label="블록 ${i + 1} 내용">${esc(b.text)}</textarea></div>`).join('') : '<p class="note">이 쪽에는 블록이 없습니다.</p>') +
+    `<div class="row"><label class="note"><input type="checkbox" id="rv" ${reviewed.has(page) ? 'checked' : ''}> 이 쪽 확인 완료</label></div>`;
+  stats();
+}
+function mark() { dirty = true; $('save').disabled = false; $('msg').textContent = '저장하지 않은 수정이 있습니다.'; }
+function renumber() { blocks.forEach((b, i) => b.seq = i); }
+
+$('run').onclick = async () => {
+  if (!pdf) return; if (blocks.length && !confirm('저장된 변환 결과와 수정 내용을 지우고 다시 변환할까요?')) return;
+  $('run').disabled = true;
+  const r = await PdfConvert.convert(pdf, { onProgress: (n, t, ph) => $('msg').textContent = `${ph === 'read' ? '글자 읽는 중' : '배치 분석 중'} ${n}/${t}` });
+  blocks = r.blocks; reviewed = new Set(); page = 1; sel = null; $('run').disabled = false;
+  $('msg').textContent = `변환했습니다: ${r.stats.pages}쪽 중 2단 ${r.stats.twoColPages}쪽. 저장을 누르면 보관됩니다.`; mark(); draw();
+};
+$('save').onclick = async () => {
+  $('save').disabled = true; $('msg').textContent = '저장 중…';
+  try {
+    let r = await sb.from('structured_blocks').delete().eq('manuscript_id', msRow.id); if (r.error) throw r.error;
+    renumber();
+    for (let i = 0; i < blocks.length; i += 200) {
+      r = await sb.from('structured_blocks').insert(blocks.slice(i, i + 200).map(b => ({ manuscript_id: msRow.id, seq: b.seq, page: b.page, type: b.type, text: b.text, bbox: b.bbox || null, flags: b.flags || [], edited: !!b.edited })));
+      if (r.error) throw r.error;
+    }
+    const status = pdf && reviewed.size === pdf.numPages ? '확인 완료' : reviewed.size ? '확인 중' : '변환됨';
+    r = await sb.from('manuscripts').update({ convert_status: status, converted_at: new Date().toISOString(), reviewed_pages: [...reviewed] }).eq('id', msRow.id); if (r.error) throw r.error;
+    msRow.convert_status = status; dirty = false; $('msg').textContent = `저장했습니다 (${status}).`; $('sub').textContent = `${msRow.filename} · ${pdf.numPages}쪽 · 상태 ${status}`;
+  } catch (e) { $('msg').textContent = '저장하지 못했습니다: ' + e.message; $('save').disabled = false; }
+};
+document.addEventListener('click', e => {
+  const pgb = e.target.closest('[data-page]'); if (pgb) { page = +pgb.dataset.page; sel = null; draw(); return; }
+  const bx = e.target.closest('.box, [data-blk]');
+  if (bx && !e.target.closest('textarea,select,button')) { sel = +(bx.dataset.seq ?? bx.dataset.blk); draw(); document.querySelector(`[data-blk="${sel}"]`)?.scrollIntoView({ block: 'nearest' }); }
+  const mg = e.target.closest('[data-merge]');
+  if (mg) { const i = blocks.findIndex(b => b.seq == mg.dataset.merge), pb = blocks.filter(b => b.page === page), k = pb.findIndex(b => b.seq == mg.dataset.merge);
+    const prev = pb[k - 1], cur = blocks[i]; if (!prev) return;
+    prev.text = prev.text + (/[가-힣]$/.test(prev.text) && /^[가-힣]/.test(cur.text) ? '' : ' ') + cur.text; prev.edited = true;
+    if (prev.bbox && cur.bbox) { const x0 = Math.min(prev.bbox.x, cur.bbox.x), y0 = Math.min(prev.bbox.y, cur.bbox.y), x1 = Math.max(prev.bbox.x + prev.bbox.w, cur.bbox.x + cur.bbox.w), y1 = Math.max(prev.bbox.y + prev.bbox.h, cur.bbox.y + cur.bbox.h); prev.bbox = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }; }
+    blocks.splice(i, 1); renumber(); mark(); draw(); }
+  const sp = e.target.closest('[data-split]');
+  if (sp) { const ta = document.querySelector(`[data-text="${sp.dataset.split}"]`), i = blocks.findIndex(b => b.seq == sp.dataset.split), pos = ta.selectionStart;
+    if (!pos || pos >= ta.value.length) { $('msg').textContent = '나눌 위치에 글자 커서를 두고 누르세요.'; return; }
+    const b = blocks[i]; blocks.splice(i + 1, 0, { ...b, text: ta.value.slice(pos).trim(), edited: true, flags: [] }); b.text = ta.value.slice(0, pos).trim(); b.edited = true; renumber(); mark(); draw(); }
+});
+document.addEventListener('change', e => {
+  const t = e.target.closest('[data-type]'); if (t) { const b = blocks.find(x => x.seq == t.dataset.type); b.type = t.value; b.edited = true; mark(); draw(); }
+  if (e.target.id === 'rv') { e.target.checked ? reviewed.add(page) : reviewed.delete(page); mark(); stats(); }
+  if (e.target.id === 'ms') { if (dirty && !confirm('저장하지 않은 수정이 있습니다. 다른 원고로 바꿀까요?')) return; openMs(e.target.value); }
+});
+document.addEventListener('input', e => { const t = e.target.closest('[data-text]'); if (t) { const b = blocks.find(x => x.seq == t.dataset.text); b.text = t.value; b.edited = true; mark(); } });
+window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+requireMember(loadMsList);
+</script>
+</body></html>
