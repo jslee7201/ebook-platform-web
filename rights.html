@@ -4,7 +4,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@700&display=swap">
 <link rel="stylesheet" href="app.css?v=3">
 </head><body>
-<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="index.html">홈</a><a href="glossary.html">공용 용어집</a><a href="rights.html" aria-current="page">권리 게이트</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
+<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="index.html">홈</a><a href="glossary.html">공용 용어집</a><a href="rights.html" aria-current="page">권리 게이트</a><a href="figures.html">그림 대장</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
 <main>
   <div>
     <h1>권리 게이트</h1>
@@ -53,7 +53,7 @@
 const $ = id => document.getElementById(id);
 const P = { print:'종이책', ebook:'전자책(EPUB)', web:'웹뷰어', chatbot:'챗봇', ai_translation:'AI 번역', audio:'오디오북', video:'영상' };
 const ORDER = Object.keys(P);
-let books = [], rights = [], cur = null, isAdmin = false, target = null;
+let books = [], rights = [], cur = null, isAdmin = false, target = null, blockers = {};
 
 function msg(t, bad) { const m = $('m'); m.hidden = false; m.textContent = t; m.className = 'msg' + (bad ? ' bad' : ''); clearTimeout(msg.t); msg.t = setTimeout(() => m.hidden = true, 6000); }
 const allowed = r => r.contract || r.consent_status === '동의';
@@ -68,10 +68,12 @@ async function loadRights() {
   const { data, error } = await sb.from('book_rights').select('*').eq('book_id', cur);
   if (error) { msg('불러오지 못했습니다: ' + error.message, true); return; }
   rights = data.sort((a, b) => ORDER.indexOf(a.product) - ORDER.indexOf(b.product));
+  const res = await Promise.all(ORDER.map(p => sb.rpc('figure_blockers', { p_book: cur, p_product: p })));
+  blockers = Object.fromEntries(ORDER.map((p, i) => [p, (res[i].data || []).map(x => typeof x === 'string' ? x : Object.values(x)[0])]));
   render(); loadLog();
 }
 function render(flash) {
-  const ok = rights.filter(allowed).length, pub = rights.filter(r => r.publish_status === '배포').length, need = rights.filter(r => !r.contract && r.consent_status === '필요');
+  const ok = rights.filter(r => allowed(r) && !(blockers[r.product] || []).length).length, pub = rights.filter(r => r.publish_status === '배포').length, need = rights.filter(r => !r.contract && r.consent_status === '필요');
   $('sum').innerHTML = `<span class="pill ok">배포 가능 ${ok} / ${rights.length}</span><span class="pill">배포 중 ${pub}</span>` +
     (need.length ? `<span class="pill warn">동의 필요: ${need.map(r => esc(P[r.product]) + '(' + esc(r.consent_party || '') + ')').join(', ')}</span>` : '');
   $('act-h').hidden = !isAdmin;
@@ -85,7 +87,7 @@ function render(flash) {
     return `<tr${r.id === flash ? ' class="flash"' : ''}><td><b>${esc(P[r.product])}</b></td>
       <td>${r.contract ? '<span class="pill ok">계약 포함</span>' : '<span class="pill">계약 없음</span>'}</td>
       <td>${consent}</td>
-      <td>${a ? '<span class="pill ok">배포 가능</span>' : '<span class="pill bad">잠금</span>'}</td>
+      <td>${!a ? '<span class="pill bad">잠금</span>' : (blockers[r.product] || []).length ? `<span class="pill warn">그림 ${blockers[r.product].length}개 미확인</span><br><a class="note" href="figures.html">${esc(blockers[r.product].slice(0, 5).join(', '))}</a>` : '<span class="pill ok">배포 가능</span>'}</td>
       <td>${pubSel}</td>
       <td ${isAdmin ? '' : 'hidden'}><label class="note"><input type="checkbox" data-contract="${r.id}" ${r.contract ? 'checked' : ''}> 계약 포함</label></td></tr>`;
   }).join('');
@@ -94,7 +96,8 @@ async function loadLog() {
   const { data } = await sb.from('rights_log').select('*').eq('book_id', cur).order('changed_at', { ascending: false }).limit(15);
   $('log').innerHTML = (data || []).map(l => {
     let t = '';
-    if (l.action === 'consent') t = `${P[l.product]} 동의 기록: ${l.detail.decision}${l.detail.note ? ' (' + l.detail.note + ')' : ''}`;
+    if (l.action === 'figure_lock') t = `${P[l.product]}: 그림 ${l.detail.figure} 권리 미확인으로 배포 중지`;
+    else if (l.action === 'consent') t = `${P[l.product]} 동의 기록: ${l.detail.decision}${l.detail.note ? ' (' + l.detail.note + ')' : ''}`;
     else { const b = l.detail.before || {}, a = l.detail.after || {}; const ch = [];
       if (b.contract !== a.contract) ch.push(a.contract ? '계약 포함으로 변경' : '계약 해제');
       if (b.publish_status !== a.publish_status) ch.push(`배포 상태 ${b.publish_status}→${a.publish_status}`);

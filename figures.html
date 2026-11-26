@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>그림 대장</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@700&display=swap">
+<link rel="stylesheet" href="app.css?v=3">
+</head><body>
+<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="index.html">홈</a><a href="glossary.html">공용 용어집</a><a href="rights.html">권리 게이트</a><a href="figures.html" aria-current="page">그림 대장</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
+<main>
+  <div>
+    <h1>그림 대장</h1>
+    <p class="muted" style="margin:0">그림마다 출처, 허락받은 산출물, 인물 사진 동의를 기록합니다. 권리가 확인되지 않은 그림이 하나라도 있으면 그 산출물은 <a href="rights.html">권리 게이트</a>에서 배포할 수 없고, 배포 중이던 산출물은 자동으로 멈춥니다. <span id="live" class="pill">연결 중…</span></p>
+  </div>
+  <div class="row" role="tablist" id="books" aria-label="책 선택"></div>
+
+  <section class="card" aria-labelledby="g-h">
+    <h2 id="g-h">산출물별 그림 상태</h2>
+    <div id="gate" class="row"></div>
+  </section>
+
+  <section class="card" aria-labelledby="l-h">
+    <div class="row" style="justify-content:space-between">
+      <h2 id="l-h">그림 목록 <span id="n" class="pill"></span></h2>
+      <div class="row"><label class="note" for="f">보기</label><select id="f"><option value="">전체</option><option value="todo">처리 필요만</option></select></div>
+    </div>
+    <div class="tbl"><table>
+      <thead><tr><th>그림</th><th>출처</th><th>권리</th><th>허락된 산출물</th><th>인물</th><th>처리 방침·메모</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <form id="ff" method="dialog" style="display:grid;gap:14px">
+    <h2 id="dt">그림</h2>
+    <p id="dcap" class="note" style="margin:0"></p>
+    <div class="form">
+      <label for="f_type">출처 유형</label><select id="f_type"><option>자체 제작</option><option>원서 자체</option><option>제3자</option><option>저자 촬영</option><option>미확인</option></select>
+      <label for="f_detail">원 출처</label><input id="f_detail">
+      <label for="f_credit">출처 표기</label><input id="f_credit" placeholder="책에 실을 출처 문구">
+      <label for="f_status">권리 상태</label><select id="f_status"><option>불필요</option><option>확인 필요</option><option>요청 중</option><option>허락</option><option>거절</option></select>
+      <span class="note">허락된 산출물</span><div id="f_scope" class="row"></div>
+      <label for="f_person">인물 사진</label><select id="f_person"><option value="false">없음</option><option value="true">있음</option></select>
+      <label for="f_pc">인물 동의</label><select id="f_pc"><option value="">확인 전</option><option value="true">동의 받음</option><option value="false">동의 없음</option></select>
+      <label for="f_plan">처리 방침</label><select id="f_plan"><option value="">-</option><option>유지</option><option>허락 요청</option><option>대체 그림 제작</option><option>삭제</option></select>
+      <label for="f_note">메모</label><input id="f_note">
+    </div>
+    <div id="dmsg" class="msg bad" hidden></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn ghost" value="cancel" formnovalidate>닫기</button><button class="btn" value="save">저장</button></div>
+  </form>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="config.js?v=2"></script>
+<script>
+const $ = id => document.getElementById(id);
+const P = { print:'종이책', ebook:'전자책', web:'웹뷰어', chatbot:'챗봇', ai_translation:'AI 번역', audio:'오디오북', video:'영상' };
+let books = [], figs = [], cur = null, editing = null;
+const cleared = (f, p) => (f.rights_status === '불필요' || (f.rights_status === '허락' && f.permission_scope.includes(p))) && (!f.contains_person || f.person_consent === true);
+const needsWork = f => Object.keys(P).some(p => !cleared(f, p));
+
+async function loadBooks() {
+  const { data } = await sb.from('books').select('id,title,work_type').order('title');
+  books = data || []; if (!cur && books.length) cur = books[0].id;
+  $('books').innerHTML = books.map(b => `<button role="tab" class="btn ${b.id === cur ? '' : 'ghost'}" aria-selected="${b.id === cur}" data-book="${b.id}">${esc(b.title)} <span class="pill">${esc(b.work_type)}</span></button>`).join('');
+}
+async function loadFigs() {
+  const { data, error } = await sb.from('figures').select('*').eq('book_id', cur);
+  if (error) { $('rows').innerHTML = `<tr><td colspan="7">${esc(error.message)}</td></tr>`; return; }
+  figs = data.sort((a, b) => a.no.localeCompare(b.no, 'ko', { numeric: true })); render();
+}
+function render(flash) {
+  $('gate').innerHTML = Object.entries(P).map(([p, l]) => { const bl = figs.filter(f => !cleared(f, p)).map(f => f.no);
+    return `<span class="pill ${bl.length ? 'bad' : 'ok'}" title="${esc(bl.join(', '))}">${esc(l)}: ${bl.length ? '막는 그림 ' + bl.length + '개 (' + esc(bl.slice(0, 6).join(', ')) + (bl.length > 6 ? '…' : '') + ')' : '모두 확인'}</span>`; }).join('');
+  const list = $('f').value === 'todo' ? figs.filter(needsWork) : figs;
+  $('n').textContent = `${list.length} / ${figs.length}`;
+  $('rows').innerHTML = list.map(f => `<tr${f.id === flash ? ' class="flash"' : ''}>
+    <td><b>그림 ${esc(f.no)}</b><br><span class="note">${esc((f.caption || '').slice(0, 60))}</span></td>
+    <td><span class="pill ${f.source_type === '제3자' ? 'warn' : f.source_type === '미확인' ? 'bad' : ''}">${esc(f.source_type)}</span><br><span class="note">${esc((f.source_detail || '').slice(0, 70))}</span></td>
+    <td><span class="pill ${f.rights_status === '불필요' || f.rights_status === '허락' ? 'ok' : f.rights_status === '거절' ? 'bad' : 'warn'}">${esc(f.rights_status)}</span></td>
+    <td>${f.rights_status === '불필요' ? '<span class="note">전체</span>' : (f.permission_scope.map(p => `<span class="pill">${esc(P[p] || p)}</span>`).join(' ') || '<span class="note">없음</span>')}</td>
+    <td>${f.contains_person ? `<span class="pill ${f.person_consent ? 'ok' : 'bad'}">${f.person_consent ? '동의 받음' : '동의 확인 필요'}</span>` : '<span class="note">-</span>'}</td>
+    <td>${f.action_plan ? `<span class="pill">${esc(f.action_plan)}</span> ` : ''}<span class="note">${esc(f.note || '')}</span></td>
+    <td><button class="btn ghost" data-edit="${f.id}">수정</button></td></tr>`).join('');
+}
+function openEdit(f) {
+  editing = f; $('dt').textContent = `그림 ${f.no}`; $('dcap').textContent = f.caption || ''; $('dmsg').hidden = true;
+  $('f_type').value = f.source_type; $('f_detail').value = f.source_detail || ''; $('f_credit').value = f.credit_line || '';
+  $('f_status').value = f.rights_status; $('f_person').value = String(f.contains_person); $('f_pc').value = f.person_consent === null ? '' : String(f.person_consent);
+  $('f_plan').value = f.action_plan || ''; $('f_note').value = f.note || '';
+  $('f_scope').innerHTML = Object.entries(P).map(([p, l]) => `<label class="note"><input type="checkbox" value="${p}" ${f.permission_scope.includes(p) ? 'checked' : ''}> ${l}</label>`).join('');
+  $('dlg').showModal();
+}
+$('ff').addEventListener('submit', async e => {
+  if (e.submitter?.value !== 'save') return; e.preventDefault();
+  const row = { source_type: $('f_type').value, source_detail: $('f_detail').value.trim() || null, credit_line: $('f_credit').value.trim() || null,
+    rights_status: $('f_status').value, permission_scope: [...$('f_scope').querySelectorAll('input:checked')].map(i => i.value),
+    contains_person: $('f_person').value === 'true', person_consent: $('f_pc').value === '' ? null : $('f_pc').value === 'true',
+    action_plan: $('f_plan').value || null, note: $('f_note').value.trim() || null };
+  const { error } = await sb.from('figures').update(row).eq('id', editing.id);
+  if (error) { $('dmsg').hidden = false; $('dmsg').textContent = '저장하지 못했습니다: ' + error.message; return; }
+  $('dlg').close(); loadFigs();
+});
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-book]'); if (b) { cur = b.dataset.book; loadBooks(); loadFigs(); }
+  const ed = e.target.closest('[data-edit]'); if (ed) openEdit(figs.find(f => f.id == ed.dataset.edit));
+});
+$('f').onchange = () => render();
+requireMember(async () => {
+  await loadBooks(); await loadFigs();
+  sb.channel('figures').on('postgres_changes', { event: '*', schema: 'public', table: 'figures' }, p => {
+    if (p.new?.book_id !== cur) return; const i = figs.findIndex(f => f.id === p.new.id); if (i >= 0) figs[i] = p.new; else figs.push(p.new); render(p.new.id);
+  }).subscribe(s => { if (s === 'SUBSCRIBED') { $('live').textContent = '실시간 연결됨'; $('live').className = 'pill ok'; } });
+});
+</script>
+</body></html>
