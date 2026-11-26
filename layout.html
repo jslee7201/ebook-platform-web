@@ -97,10 +97,10 @@ const opts = () => ({ size: $('size').value, theme: $('theme').value, memo: $('t
 function showRows(final, report) {
   const rep = Object.fromEntries((report || []).map(r => [r.figure, r]));
   const sum = {}; final.forEach(f => sum[f.same] = (sum[f.same] || 0) + 1);
-  const cls = { '같은 쪽': 'ok', '같은 펼침면': '', '떨어짐': 'bad', '인용 없음': 'warn', '빈칸 60mm 넘음': 'warn' };
+  const cls = { '같은 쪽': 'ok', '같은 펼침면': '', '떨어짐': 'bad', '인용 없음': 'warn', '빈칸 40mm 넘음': 'warn' };
   $('rows').innerHTML = final.map(f => { const r = rep[f.figure] || {};
-    return `<tr><td>그림 ${esc(f.figure)}</td><td><span class="pill ${cls[f.same] ?? ''}">${esc(f.same || '-')}</span></td><td>${f.fig_page ?? '-'}</td><td>${f.cite_page ?? '-'}</td><td>${r.shift ? (r.shift > 0 ? '+' : '') + r.shift + '블록' : '-'}</td><td>${esc(r.size || '원래 크기')}</td><td>${f.gap_before_mm != null ? (f.gap_before_mm > 60 ? `<span class="pill warn" title="앞쪽 아래가 크게 비었습니다. S-04 수동 배치에서 조정">${f.gap_before_mm}mm</span>` : f.gap_before_mm + 'mm') : '-'}</td></tr>`; }).join('');
-  const big = final.filter(f => f.gap_before_mm > 60).length; if (big) sum['빈칸 60mm 넘음'] = big;
+    return `<tr><td>그림 ${esc(f.figure)}</td><td><span class="pill ${cls[f.same] ?? ''}">${esc(f.same || '-')}</span></td><td>${f.fig_page ?? '-'}</td><td>${f.cite_page ?? '-'}</td><td>${r.shift ? (r.shift > 0 ? '+' : '') + r.shift + '블록' : '-'}</td><td>${esc(r.size || '원래 크기')}</td><td>${f.gap_before_mm != null ? (f.gap_before_mm > 40 ? `<span class="pill warn" title="앞쪽 아래가 크게 비었습니다. S-04 수동 배치에서 조정">${f.gap_before_mm}mm</span>` : f.gap_before_mm + 'mm') : '-'}</td></tr>`; }).join('');
+  const big = final.filter(f => f.gap_before_mm > 40).length; if (big) sum['빈칸 40mm 넘음'] = big;
   $('sum').innerHTML = Object.entries(sum).map(([k, v]) => `<span class="pill ${cls[k] ?? ''}">${esc(k)} ${v}</span>`).join('');
   return sum;
 }
