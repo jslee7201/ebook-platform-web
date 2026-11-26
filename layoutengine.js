@@ -14,7 +14,9 @@
   function memoCss(z) {
     const [mt, mo, mb, mi] = z.m, { W, E, O } = memoDims(z);
     const box = side => `@${side}-top{content:'MEMO';vertical-align:top;text-align:${side};width:${W}mm;margin-${side}:${E}mm;padding-top:1.2mm;font-family:"Noto Sans KR",sans-serif;font-size:6pt;letter-spacing:.25em;color:#9aa3b2;border-top:.7pt solid #9aa3b2;background-image:${MEMO_SVG};background-size:${W}mm 8mm;background-repeat:repeat-y;background-position:0 1mm}`;
-    return `@page :right{margin:${mt}mm ${O}mm ${mb}mm ${mi}mm;${box('right')}}@page :left{margin:${mt}mm ${mi}mm ${mb}mm ${O}mm;${box('left')}}@page :first{@right-top{content:none;border:0;background:none}}`;
+    return `@page :right{margin:${mt}mm ${O}mm ${mb}mm ${mi}mm;${box('right')}}@page :left{margin:${mt}mm ${mi}mm ${mb}mm ${O}mm;${box('left')}}@page :first{@right-top{content:none;border:0;background:none}}` +
+      // 참고문헌은 메모 칸 없이 (본문만 메모)
+      `.refs-head,ol.refs{page:refs}@page refs:right{margin:${mt}mm ${mo}mm ${mb}mm ${mi}mm;@right-top{content:none;border:0;background:none}}@page refs:left{margin:${mt}mm ${mi}mm ${mb}mm ${mo}mm;@left-top{content:none;border:0;background:none}}`;
   }
   const citeWrap = h => h.replace(/(>[^<]*)/g, seg => seg.replace(/그림\s*(\d+\.\d+)(?![\d])/g, (m, no) => `${m}<span class="qc" data-f="${no}"></span>`));
 
@@ -29,6 +31,7 @@
         const b = ch.blocks[i]; let h = b.html;
         if (b.fig && st.sizeCls && st.sizeCls[b.fig]) h = h.replace(/<figure id="fig-([\d.]+)" class="/, m => m + st.sizeCls[b.fig] + ' ');
         if (b.tag === 'p' || b.tag === 'aside') h = citeWrap(h);
+        const nx = ch.blocks[idx[idx.indexOf(i) + 1]]; if (b.tag === 'h2' && nx && /^<ol class="refs"/.test(nx.html)) h = h.replace('<h2 ', '<h2 class="refs-head" ');
         return h.replace(/data-file="([^"]+)" src=""/g, (m, f) => { const im = (o.images || {})[f]; if (!im) return `alt-missing="${esc(f)}"`;
           // 측정할 때는 같은 비율의 빈 SVG로 대신함(배치는 크기 비율만 쓰므로 결과가 같고, 큰 그림을 매번 불러오지 않음)
           const src = o.measure ? `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${im.w}' height='${im.h}'/%3E` : im.url;
@@ -130,6 +133,6 @@
     const final = pkg.chapters.flatMap(ch => ch.blocks.filter(b => b.fig).map(b => ({ figure: b.fig, ...scoreFig(b.fig, m)[1] })));
     return { state: st, report, final, pages: m.pages, trials };
   }
-  const api = { buildHtml, render, optimize, memoCss, scoreFig, version: '1.0', PAGED };
+  const api = { buildHtml, render, optimize, memoCss, scoreFig, version: '1.1', PAGED };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.LayoutEngine = api;
 })(typeof window !== 'undefined' ? window : globalThis);
