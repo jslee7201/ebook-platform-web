@@ -121,8 +121,8 @@ function runRules(text, rules) {
   for (const r of rules) {
     if (r.kind === 'ending') sents.forEach(s => { const m = s.match(/(요|니다|습니까|세요)[.!?]?["”’)]?$/); if (m) out.push({ r, html: ctx(s, s.length - m[0].length, s.length), fix: '평서체(~다)로' }); });
     if (r.kind === 'unit_space') { const u = (r.units || []).map(x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-      for (const m of text.matchAll(new RegExp(`(\\d)(${u})(?![A-Za-z])`, 'g'))) out.push({ r, html: ctx(text, m.index, m.index + m[0].length), fix: `${m[1]} ${m[2]}` });
-      for (const m of text.matchAll(/(\d)\s+%/g)) out.push({ r, html: ctx(text, m.index, m.index + m[0].length), fix: `${m[1]}%` }); }
+      for (const m of text.matchAll(new RegExp(`(\\d+(?:\\.\\d+)?)(${u})(?![A-Za-z])`, 'g'))) out.push({ r, html: ctx(text, m.index, m.index + m[0].length), fix: `${m[1]} ${m[2]}` });
+      for (const m of text.matchAll(/(\d+(?:\.\d+)?)\s+%/g)) out.push({ r, html: ctx(text, m.index, m.index + m[0].length), fix: `${m[1]}%` }); }
     if (r.kind === 'first_english') { const seen = {}; for (const m of text.matchAll(/([가-힣][가-힣 ]*)\(([A-Za-z][A-Za-z \-]{2,})\)/g)) { const k = m[2].toLowerCase().trim(); seen[k] = (seen[k] || 0) + 1; if (seen[k] > 1) out.push({ r, html: ctx(text, m.index, m.index + m[0].length), fix: `${m[1].trim()} (영문 빼기)` }); } }
     if (r.kind === 'quotes') for (const m of text.matchAll(/["']/g)) out.push({ r, html: ctx(text, m.index, m.index + 1), fix: '“ ” 또는 ‘ ’' });
     if (r.kind === 'sentence_length') sents.forEach(s => { if (s.length > (r.max || 200)) out.push({ r, html: esc(s.slice(0, 60)) + '…', fix: `${s.length}자 → 나누기 검토` }); });
