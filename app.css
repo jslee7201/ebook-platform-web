@@ -58,3 +58,5 @@ mark.var{background:var(--warn-soft);color:var(--warn);border-radius:3px;padding
 .row>*{max-width:100%}
 input[type=file]{max-width:100%}
 select{max-width:100%}
+main,.card{grid-template-columns:minmax(0,1fr)}
+.card>*,main>*{min-width:0}
