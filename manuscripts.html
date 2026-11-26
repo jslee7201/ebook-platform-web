@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>원고 입력</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@700&display=swap">
+<link rel="stylesheet" href="app.css?v=3">
+<style>
+.bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}.bar i{display:block;height:100%;background:var(--accent);width:0;transition:width .2s}
+.pages{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px}
+.pg{border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:12px;text-align:center}
+.pg.ok{background:var(--ok-soft);color:var(--ok)}.pg.bad{background:var(--bad-soft);color:var(--bad)}.pg.ocr{background:var(--accent-soft);color:var(--accent)}
+pre.sample{white-space:pre-wrap;max-height:220px;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;margin:0;font-size:13px}
+</style>
+</head><body>
+<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="index.html">홈</a><a href="manuscripts.html" aria-current="page">원고 입력</a><a href="glossary.html">공용 용어집</a><a href="rights.html">권리 게이트</a><a href="figures.html">그림 대장</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
+<main>
+  <div>
+    <h1>원고 입력</h1>
+    <p class="muted" style="margin:0">원고 파일을 올리면 원본을 비공개 보관함에 보관하고 쪽별 글자를 꺼냅니다. PDF에 글자층이 없거나 깨져 있으면(예: 출간본 PDF) 그 쪽만 브라우저에서 OCR로 읽고, 글자를 꺼낼 수 있는 원본을 요청하도록 표시합니다.</p>
+  </div>
+
+  <section class="card" aria-labelledby="u-h">
+    <h2 id="u-h">1. 파일 선택과 검사</h2>
+    <div class="row">
+      <label class="note" for="book">책</label><select id="book"></select>
+      <label class="note" for="kind">종류</label><select id="kind"><option>저자 원고</option><option>원서</option><option>출간본</option><option>기타</option></select>
+      <label class="note" for="file">파일</label><input id="file" type="file" accept=".pdf,.hwpx,.docx,.png,.jpg,.jpeg">
+      <button class="btn" id="scan" disabled>글자층 검사</button>
+    </div>
+    <div id="scanres" hidden style="display:grid;gap:10px">
+      <div id="verdict" class="row"></div>
+      <div class="pages" id="pages" aria-label="쪽별 상태"></div>
+      <p class="note" style="margin:0">초록 = 글자층 정상, 빨강 = 글자층 없음·깨짐(OCR 대상), 파랑 = OCR 완료</p>
+      <label class="note" for="sample">꺼낸 글자 미리보기</label>
+      <pre class="sample" id="sample"></pre>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="o-h" id="ocrbox" hidden>
+    <h2 id="o-h">2. OCR</h2>
+    <p class="note" style="margin:0">글자층이 없는 쪽을 한국어·영어 OCR로 읽습니다. 처음 한 번은 한국어 인식 데이터를 내려받느라 시간이 걸립니다. 쪽당 수 초~수십 초.</p>
+    <div class="row"><button class="btn" id="ocr">OCR 실행</button><span id="ocrmsg" class="muted"></span></div>
+    <div class="bar"><i id="ocrbar"></i></div>
+  </section>
+
+  <section class="card" aria-labelledby="s-h" id="savebox" hidden>
+    <h2 id="s-h">3. 보관</h2>
+    <div class="row"><label class="note" for="note">메모</label><input id="note" style="flex:1" placeholder="예: 출간본 PDF, 인쇄소 최종본"></div>
+    <div class="row"><button class="btn" id="save">원본과 글자 보관</button><span id="savemsg" class="muted"></span></div>
+  </section>
+
+  <section class="card" aria-labelledby="l-h">
+    <h2 id="l-h">보관된 원고</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>파일</th><th>책·종류</th><th>쪽</th><th>글자 상태</th><th>추출 가능한 원본</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+    <div id="viewer" hidden class="card" style="padding:12px"><div class="row" style="justify-content:space-between"><b id="vt"></b><button class="btn ghost" id="vclose">닫기</button></div><pre class="sample" id="vtext" style="max-height:420px"></pre></div>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="config.js?v=2"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const $ = id => document.getElementById(id);
+let books = [], file = null, pdf = null, pages = [], books_by = {};
+
+// 글자층 판정: 한국어 문서인데 한글 비율이 낮으면 깨진 글자층(사용자 정의 글꼴 인코딩 등)
+function judge(text) {
+  const t = text.replace(/\s/g, '');
+  if (t.length < 15) return { state: '없음', ratio: 0 };
+  const hangul = (t.match(/[가-힣]/g) || []).length, latin = (t.match(/[A-Za-z]/g) || []).length, odd = (t.match(/[-�]|[\u0080-ÿ]/g) || []).length;
+  const ratio = hangul / Math.max(1, hangul + latin + odd);
+  const korean = ['저자 원고', '출간본'].includes($('kind').value);
+  return { state: (odd / t.length > 0.15 || (korean && ratio < 0.3)) ? '깨짐' : '정상', ratio };
+}
+function drawPages() {
+  $('pages').innerHTML = pages.map(p => `<div class="pg ${p.source === 'OCR' ? 'ocr' : p.state === '정상' ? 'ok' : 'bad'}" title="${p.state}${p.conf ? ' · 신뢰도 ' + Math.round(p.conf) : ''}">${p.no}쪽</div>`).join('');
+}
+function verdict() {
+  const bad = pages.filter(p => p.state !== '정상' && p.source !== 'OCR').length, ocr = pages.filter(p => p.source === 'OCR').length;
+  const ratio = pages.length ? pages.reduce((s, p) => s + p.ratio, 0) / pages.length : 0;
+  let st = bad === 0 ? (ocr ? (ocr === pages.length ? 'OCR 완료' : '일부 OCR') : '추출 가능') : (pages.every(p => p.state === '없음') ? '텍스트층 없음' : '텍스트층 깨짐');
+  $('verdict').innerHTML = `<span class="pill ${bad ? 'bad' : 'ok'}">${st}</span><span class="pill">${pages.length}쪽</span><span class="pill">한글 비율 ${Math.round(ratio * 100)}%</span>` +
+    (bad ? `<span class="pill warn">OCR 대상 ${bad}쪽</span>` : '') + (bad || ocr ? `<span class="pill warn">추출 가능한 원본 요청 필요</span>` : '');
+  $('ocrbox').hidden = !bad; $('savebox').hidden = false;
+  $('sample').textContent = pages.slice(0, 3).map(p => `── ${p.no}쪽 (${p.source}) ──\n${p.text.slice(0, 600)}`).join('\n\n');
+  return { st, ratio, bad, ocr };
+}
+
+async function scan(blob) {
+  $('scanres').hidden = false; pages = [];
+  if (blob.type !== 'application/pdf' && !/\.pdf$/i.test(blob.name || '')) {
+    $('verdict').innerHTML = '<span class="pill ok">구조화 원고</span><span class="note">HWPX·DOCX는 글자가 들어 있는 원본이라 OCR이 필요 없습니다. 보관 후 변환 도구로 구조화합니다.</span>';
+    $('pages').innerHTML = ''; $('sample').textContent = ''; $('ocrbox').hidden = true; $('savebox').hidden = false; return;
+  }
+  pdf = await pdfjsLib.getDocument({ data: await blob.arrayBuffer() }).promise;
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const tc = await (await pdf.getPage(i)).getTextContent();
+    const text = tc.items.map(it => it.str + (it.hasEOL ? '\n' : '')).join('');
+    pages.push({ no: i, text, source: '텍스트층', ...judge(text) });
+    if (i % 5 === 0) drawPages();
+  }
+  drawPages(); return verdict();
+}
+
+async function runOcr() {
+  const todo = pages.filter(p => p.state !== '정상' && p.source !== 'OCR');
+  $('ocr').disabled = true; $('ocrmsg').textContent = '한국어 인식 준비 중…';
+  const worker = await Tesseract.createWorker(['kor', 'eng']);
+  let done = 0;
+  for (const p of todo) {
+    const page = await pdf.getPage(p.no), vp = page.getViewport({ scale: 2 });
+    const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+    await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+    const { data } = await worker.recognize(c);
+    Object.assign(p, { text: data.text.replace(/(?<=[가-힣]) (?=[가-힣])/g, m => m), source: 'OCR', conf: data.confidence, state: '정상' });
+    done++; $('ocrbar').style.width = (done / todo.length * 100) + '%'; $('ocrmsg').textContent = `${done} / ${todo.length}쪽 · 평균 신뢰도 ${Math.round(todo.filter(x => x.conf).reduce((s, x) => s + x.conf, 0) / done)}`;
+    drawPages();
+  }
+  await worker.terminate(); $('ocr').disabled = false; verdict();
+}
+
+async function save(blob, name) {
+  $('save').disabled = true; $('savemsg').textContent = '보관 중…';
+  try {
+    const bookId = $('book').value, v = pages.length ? verdict() : { st: '추출 가능', ratio: null, bad: 0, ocr: 0 };
+    const ext = (name.match(/\.[a-z0-9]+$/i) || [''])[0].toLowerCase();
+    const path = `${bookId}/${crypto.randomUUID()}${ext}`;
+    const up = await sb.storage.from('manuscripts').upload(path, blob, { contentType: blob.type || 'application/octet-stream' });
+    if (up.error) throw up.error;
+    const { data: ms, error } = await sb.from('manuscripts').insert({
+      book_id: bookId, kind: $('kind').value, filename: name, storage_path: path, mime: blob.type, size_bytes: blob.size, pages: pages.length || null,
+      text_status: v.st, hangul_ratio: v.ratio, ocr_pages: pages.filter(p => p.source === 'OCR').length, ocr_engine: pages.some(p => p.source === 'OCR') ? 'tesseract.js 5.1 (kor+eng)' : null,
+      original_request: (v.bad || v.ocr) ? '요청 필요' : '불필요', note: $('note').value.trim() || null }).select().single();
+    if (error) throw error;
+    for (let i = 0; i < pages.length; i += 50) {
+      const chunk = pages.slice(i, i + 50).map(p => ({ manuscript_id: ms.id, page_no: p.no, source: p.source, text: p.text, confidence: p.conf ?? null }));
+      const r = await sb.from('manuscript_pages').insert(chunk); if (r.error) throw r.error;
+    }
+    $('savemsg').textContent = '보관했습니다.'; loadList(); return ms;
+  } catch (e) { $('savemsg').textContent = '보관하지 못했습니다: ' + (e.message || e); throw e; }
+  finally { $('save').disabled = false; }
+}
+
+async function loadList() {
+  const { data } = await sb.from('manuscripts').select('*').order('created_at', { ascending: false });
+  $('rows').innerHTML = (data || []).map(m => `<tr>
+    <td><b>${esc(m.filename)}</b><br><span class="note">${new Date(m.created_at).toLocaleString('ko-KR')} · ${Math.round((m.size_bytes || 0) / 1024)} KB${m.note ? ' · ' + esc(m.note) : ''}</span></td>
+    <td>${esc(books_by[m.book_id] || '')}<br><span class="pill">${esc(m.kind)}</span></td>
+    <td>${m.pages ?? '-'}</td>
+    <td><span class="pill ${['추출 가능', 'OCR 완료'].includes(m.text_status) ? 'ok' : 'warn'}">${esc(m.text_status)}</span>${m.ocr_pages ? `<br><span class="note">OCR ${m.ocr_pages}쪽</span>` : ''}</td>
+    <td><select data-req="${m.id}" aria-label="추출 가능한 원본 요청 상태">${['불필요', '요청 필요', '요청함', '받음'].map(s => `<option ${s === m.original_request ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
+    <td class="row"><button class="btn ghost" data-view="${m.id}" data-name="${esc(m.filename)}">글자 보기</button><button class="btn ghost" data-dl="${esc(m.storage_path)}">원본</button></td></tr>`).join('') || '<tr><td colspan="6" class="note">아직 보관된 원고가 없습니다.</td></tr>';
+}
+
+document.addEventListener('click', async e => {
+  const v = e.target.closest('[data-view]');
+  if (v) { const { data } = await sb.from('manuscript_pages').select('page_no,source,text,confidence').eq('manuscript_id', v.dataset.view).order('page_no');
+    $('viewer').hidden = false; $('vt').textContent = v.dataset.name;
+    $('vtext').textContent = (data || []).map(p => `── ${p.page_no}쪽 (${p.source}${p.confidence ? ', 신뢰도 ' + Math.round(p.confidence) : ''}) ──\n${p.text || ''}`).join('\n\n') || '글자 데이터가 없습니다(구조화 원고는 변환 도구에서 처리).'; }
+  const d = e.target.closest('[data-dl]');
+  if (d) { const { data, error } = await sb.storage.from('manuscripts').createSignedUrl(d.dataset.dl, 120); if (data) window.open(data.signedUrl, '_blank', 'noopener'); else alert(error.message); }
+});
+document.addEventListener('change', async e => { const r = e.target.closest('[data-req]'); if (r) await sb.from('manuscripts').update({ original_request: r.value }).eq('id', r.dataset.req); });
+$('vclose').onclick = () => $('viewer').hidden = true;
+$('file').onchange = () => { file = $('file').files[0]; $('scan').disabled = !file; $('scanres').hidden = true; $('ocrbox').hidden = true; $('savebox').hidden = true; };
+$('scan').onclick = async () => { $('scan').disabled = true; try { await scan(file); } catch (e) { $('verdict').innerHTML = `<span class="pill bad">파일을 읽지 못했습니다: ${esc(e.message)}</span>`; } $('scan').disabled = false; };
+$('ocr').onclick = runOcr;
+$('save').onclick = () => save(file, file.name);
+
+// 시험용: 주소의 파일로 같은 과정을 실행 (예: __intake('http://localhost:8765/a.pdf','a.pdf','출간본', true))
+window.__intake = async (url, name, kind, doSave) => {
+  const b = await (await fetch(url)).blob(); file = new File([b], name, { type: b.type || 'application/pdf' });
+  $('kind').value = kind; const v = await scan(file); if (v && v.bad) await runOcr(); if (doSave) await save(file, name);
+  return { pages: pages.length, status: verdict().st, ocr: pages.filter(p => p.source === 'OCR').length, sample: pages[0]?.text.slice(0, 200) };
+};
+
+requireMember(async () => {
+  const { data } = await sb.from('books').select('id,title').order('title'); books = data || [];
+  books_by = Object.fromEntries(books.map(b => [b.id, b.title]));
+  $('book').innerHTML = books.map(b => `<option value="${b.id}">${esc(b.title)}</option>`).join('');
+  loadList();
+});
+</script>
+</body></html>
