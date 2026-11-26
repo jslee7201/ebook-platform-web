@@ -111,6 +111,8 @@ $('run').onclick = async () => {
     const r = await LayoutEngine.optimize(pkg, opts(), $('fr'), p => { done.add(p.figure); $('bar').style.width = Math.round(done.size / nfig * 100) + '%'; $('rmsg').textContent = `그림 ${p.figure} 배치 시험 중 · 쪽 나누기 ${p.trials}회 · ${Math.round((Date.now() - t0) / 1000)}초`; });
     const secs = Math.round((Date.now() - t0) / 1000); $('bar').style.width = '100%';
     const sum = showRows(r.final, r.report); lastState = r.state;
+    $('rmsg').textContent = `완료: ${r.pages}쪽 · 쪽 나누기 ${r.trials}회 · ${secs}초. 실제 그림으로 미리보기를 만드는 중…`;
+    await LayoutEngine.render(LayoutEngine.buildHtml(pkg, opts(), r.state), $('fr'));   // 측정은 빈 그림으로 했으니 실제 그림으로 다시 그림
     $('rmsg').textContent = `완료: ${r.pages}쪽 · 쪽 나누기 ${r.trials}회 · ${secs}초. 미리보기에 최종 배치가 나와 있습니다.`;
     await sb.from('layout_runs').insert({ book_id: cur, package_version: pkgRow.version, settings: { template: $('tpl').value, size: $('size').value, theme: $('theme').value }, pages: r.pages, trials: r.trials, seconds: secs, summary: sum, figures: r.final.map(f => ({ ...f, ...(r.report.find(x => x.figure === f.figure) || {}) })), state: r.state, engine: 'layoutengine ' + LayoutEngine.version + ' / pagedjs 0.4.3', run_by: uid });
     $('print').disabled = false; await loadRuns();
