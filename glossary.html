@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>공용 용어집</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@700&display=swap">
+<link rel="stylesheet" href="app.css">
+</head><body>
+<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="index.html">홈</a><a href="glossary.html" aria-current="page">공용 용어집</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
+<main>
+  <div class="row" style="justify-content:space-between">
+    <div><h1>공용 용어집</h1><p class="muted" style="margin:0">모든 편집자·역자가 같은 용어집을 씁니다. 누가 고치면 다른 사람 화면에도 바로 바뀝니다. <span id="live" class="pill">연결 중…</span></p></div>
+    <button class="btn" id="add">용어 추가</button>
+  </div>
+
+  <section class="card" aria-labelledby="w-h">
+    <h2 id="w-h">일관성 경고 <span id="wcount" class="pill"></span></h2>
+    <p class="note" style="margin:0">같은 영문에 한글이 여럿(용어 불일치), 같은 한글에 영문이 여럿(동음이의어 의심, '뜻'을 적으면 해제), 옛 용어가 다른 항목의 표준어로 쓰인 경우를 찾습니다.</p>
+    <div id="warns" class="row"></div>
+  </section>
+
+  <section class="card" aria-labelledby="c-h">
+    <h2 id="c-h">원고 용어 검사</h2>
+    <p class="note" style="margin:0">번역문이나 원고 문단을 붙여 넣으면 옛 용어(빨강)와 사용 금지 용어를 찾아 표준 용어를 알려 줍니다.</p>
+    <label for="txt" class="note">검사할 문장</label>
+    <textarea id="txt" placeholder="예: 안면신경은 경유돌공을 지나 이하선 안에서 다섯 가지로 나뉜다."></textarea>
+    <div class="row"><button class="btn" id="check">검사</button><span id="cres" class="muted"></span></div>
+    <div id="cout" class="out" hidden></div>
+  </section>
+
+  <section class="card" aria-labelledby="l-h">
+    <div class="row" style="justify-content:space-between">
+      <h2 id="l-h">용어 목록 <span id="n" class="pill"></span></h2>
+      <div class="row">
+        <label class="note" for="q">찾기</label><input id="q" placeholder="한글·영문·옛 용어">
+        <label class="note" for="fs">출처</label><select id="fs"><option value="">전체</option></select>
+        <label class="note" for="fst">상태</label><select id="fst"><option value="">전체</option><option>확정</option><option>검토</option><option>사용 금지</option></select>
+      </div>
+    </div>
+    <div class="tbl" style="max-height:60vh"><table>
+      <thead><tr><th>한글(표준)</th><th>영문</th><th>옛 용어</th><th>상태</th><th>뜻·메모</th><th>출처</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <form id="tf" method="dialog" style="display:grid;gap:14px">
+    <h2 id="dt">용어</h2>
+    <div class="form">
+      <label for="f_ko">한글(표준)</label><input id="f_ko" required>
+      <label for="f_en">영문</label><input id="f_en">
+      <label for="f_prev">옛 용어</label><input id="f_prev" placeholder="쉼표로 여러 개">
+      <label for="f_status">상태</label><select id="f_status"><option>검토</option><option>확정</option><option>사용 금지</option></select>
+      <label for="f_kma">KMA 표준</label><select id="f_kma"><option value="">확인 전</option><option value="true">맞음</option><option value="false">아님</option></select>
+      <label for="f_sense">뜻(동음이의어)</label><input id="f_sense" placeholder="예: 뒤통수 / 목구멍">
+      <label for="f_note">메모</label><input id="f_note">
+      <label for="f_source">출처</label><input id="f_source">
+    </div>
+    <div id="dmsg" class="msg bad" hidden></div>
+    <div id="hist" class="note"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn ghost" value="cancel" formnovalidate>닫기</button><button class="btn" id="save" value="save">저장</button></div>
+  </form>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let terms = [], editing = null, me = null;
+const norm = s => (s || '').toLowerCase().replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+const olds = t => (t.prev_ko || '').split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+
+async function load() {
+  const all = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await sb.from('glossary_terms').select('*').order('ko').range(from, from + 999);
+    if (error) { $('rows').innerHTML = `<tr><td colspan="7">불러오지 못했습니다: ${esc(error.message)}</td></tr>`; return; }
+    all.push(...data); if (data.length < 1000) break;
+  }
+  terms = all;
+  const srcs = [...new Set(terms.map(t => t.source).filter(Boolean))];
+  $('fs').innerHTML = '<option value="">전체</option>' + srcs.map(s => `<option>${esc(s)}</option>`).join('');
+  render(); warn();
+}
+
+function render(flashId) {
+  const q = norm($('q').value), fs = $('fs').value, fst = $('fst').value;
+  const list = terms.filter(t => (!fs || t.source === fs) && (!fst || t.status === fst) &&
+    (!q || norm(t.ko).includes(q) || norm(t.en).includes(q) || norm(t.prev_ko).includes(q)));
+  $('n').textContent = `${list.length} / ${terms.length}`;
+  $('rows').innerHTML = list.slice(0, 600).map(t => `<tr data-id="${t.id}"${t.id === flashId ? ' class="flash"' : ''}>
+    <td><b>${esc(t.ko)}</b></td><td>${esc(t.en)}</td><td>${esc(t.prev_ko)}</td>
+    <td><span class="pill ${t.status === '확정' ? 'ok' : t.status === '사용 금지' ? 'bad' : ''}">${esc(t.status)}</span>${t.kma === true ? ' <span class="pill ok">KMA</span>' : ''}</td>
+    <td>${esc([t.sense, t.note].filter(Boolean).join(' · '))}</td><td class="note">${esc(t.source)}</td>
+    <td><button class="btn ghost" data-edit="${t.id}">수정</button></td></tr>`).join('') +
+    (list.length > 600 ? `<tr><td colspan="7" class="note">앞의 600개만 표시합니다. 찾기로 범위를 좁히세요.</td></tr>` : '');
+}
+
+function warn() {
+  const byEn = {}, byKo = {}, koSet = new Set(terms.filter(t => t.status !== '사용 금지').map(t => t.ko));
+  terms.filter(t => t.status !== '사용 금지').forEach(t => {
+    if (t.en) (byEn[norm(t.en)] ||= []).push(t);
+    (byKo[t.ko] ||= []).push(t);
+  });
+  const out = [];
+  Object.values(byEn).forEach(g => { const kos = [...new Set(g.map(t => t.ko))]; if (kos.length > 1) out.push({ cls: 'bad', t: `용어 불일치: ${g[0].en} → ${kos.join(' / ')}`, q: g[0].en }); });
+  Object.values(byKo).forEach(g => { const ens = [...new Set(g.map(t => norm(t.en)).filter(Boolean))]; if (ens.length > 1 && g.some(t => !t.sense)) out.push({ cls: 'warn', t: `동음이의어 의심: ${g[0].ko} → ${ens.join(' / ')}`, q: g[0].ko }); });
+  terms.forEach(t => olds(t).forEach(o => { if (koSet.has(o) && o !== t.ko) out.push({ cls: 'warn', t: `옛 용어 충돌: '${o}'은(는) ${t.ko}의 옛 용어이면서 다른 항목의 표준어`, q: o }); }));
+  $('wcount').textContent = out.length ? `${out.length}건` : '없음';
+  $('wcount').className = 'pill ' + (out.length ? 'warn' : 'ok');
+  $('warns').innerHTML = out.length ? out.map(w => `<button class="pill ${w.cls}" style="border:0;cursor:pointer" data-q="${esc(w.q)}">${esc(w.t)}</button>`).join('') : '<span class="note">경고가 없습니다.</span>';
+}
+
+function check() {
+  const text = $('txt').value; if (!text.trim()) return;
+  const rules = [];
+  terms.forEach(t => {
+    olds(t).forEach(o => { if (o.length >= 2 && o !== t.ko && !t.ko.includes(o)) rules.push({ w: o, to: t.ko, cls: 'old', why: '옛 용어' }); });
+    if (t.status === '사용 금지') rules.push({ w: t.ko, to: '', cls: 'old', why: '사용 금지' });
+  });
+  rules.sort((a, b) => b.w.length - a.w.length);
+  const hits = []; const taken = new Array(text.length).fill(false);
+  rules.forEach(r => { let i = -1; while ((i = text.indexOf(r.w, i + 1)) !== -1) {
+    if (taken.slice(i, i + r.w.length).some(Boolean)) continue;
+    for (let k = i; k < i + r.w.length; k++) taken[k] = true; hits.push({ i, ...r }); } });
+  hits.sort((a, b) => a.i - b.i);
+  let html = '', p = 0;
+  hits.forEach(h => { html += esc(text.slice(p, h.i)) + `<mark class="${h.cls}" title="${esc(h.why + (h.to ? ' → ' + h.to : ''))}">${esc(h.w)}</mark>${h.to ? `<sup class="note">→${esc(h.to)}</sup>` : ''}`; p = h.i + h.w.length; });
+  html += esc(text.slice(p));
+  $('cout').hidden = false; $('cout').innerHTML = html;
+  $('cres').textContent = hits.length ? `${hits.length}곳을 고쳐야 합니다.` : '고칠 용어가 없습니다.';
+}
+
+async function openEdit(t) {
+  editing = t; $('dt').textContent = t ? '용어 수정' : '용어 추가'; $('dmsg').hidden = true;
+  ['ko', 'en', 'prev', 'status', 'sense', 'note', 'source'].forEach(k => $('f_' + k).value = t ? (t[k === 'prev' ? 'prev_ko' : k] ?? '') : (k === 'status' ? '검토' : ''));
+  $('f_kma').value = t && t.kma !== null ? String(t.kma) : '';
+  $('hist').textContent = '';
+  if (t) {
+    $('hist').textContent = `버전 ${t.version} · 마지막 수정 ${new Date(t.updated_at).toLocaleString('ko-KR')}`;
+    const { data } = await sb.from('glossary_history').select('action, changed_at, before, after').eq('term_id', t.id).order('changed_at', { ascending: false }).limit(5);
+    if (data?.length) $('hist').textContent += ' · 기록: ' + data.map(h => `${new Date(h.changed_at).toLocaleDateString('ko-KR')} ${h.action === 'insert' ? '추가' : h.action === 'update' ? (h.before?.ko !== h.after?.ko ? `'${h.before?.ko}'→'${h.after?.ko}'` : '수정') : '삭제'}`).join(', ');
+  }
+  $('dlg').showModal();
+}
+
+$('tf').addEventListener('submit', async e => {
+  if (e.submitter?.value !== 'save') return;
+  e.preventDefault();
+  const row = { ko: $('f_ko').value.trim(), en: $('f_en').value.trim() || null, prev_ko: $('f_prev').value.trim() || null, status: $('f_status').value,
+    kma: $('f_kma').value === '' ? null : $('f_kma').value === 'true', sense: $('f_sense').value.trim() || null, note: $('f_note').value.trim() || null, source: $('f_source').value.trim() || null };
+  if (!row.ko) return;
+  // 저장 전 경고: 같은 영문에 다른 한글
+  const clash = row.en && terms.find(t => t.id !== editing?.id && norm(t.en) === norm(row.en) && t.ko !== row.ko && t.status !== '사용 금지');
+  if (clash && !$('dmsg').dataset.ok) { $('dmsg').hidden = false; $('dmsg').textContent = `'${row.en}'은(는) 이미 '${clash.ko}'(으)로 등록되어 있습니다. 그래도 저장하려면 저장을 한 번 더 누르세요.`; $('dmsg').dataset.ok = '1'; return; }
+  delete $('dmsg').dataset.ok;
+  const q = editing ? sb.from('glossary_terms').update(row).eq('id', editing.id).eq('version', editing.version).select() : sb.from('glossary_terms').insert(row).select();
+  const { data, error } = await q;
+  if (error) { $('dmsg').hidden = false; $('dmsg').textContent = '저장하지 못했습니다: ' + error.message; return; }
+  if (editing && !data.length) { $('dmsg').hidden = false; $('dmsg').textContent = '다른 사람이 먼저 이 용어를 고쳤습니다. 닫고 다시 열어 최신 내용으로 수정하세요.'; return; }
+  $('dlg').close();
+});
+
+document.addEventListener('click', e => {
+  const ed = e.target.closest('[data-edit]'); if (ed) openEdit(terms.find(t => t.id == ed.dataset.edit));
+  const w = e.target.closest('[data-q]'); if (w) { $('q').value = w.dataset.q; render(); $('l-h').scrollIntoView({ behavior: 'smooth' }); }
+});
+$('add').onclick = () => openEdit(null);
+$('q').oninput = $('fs').onchange = $('fst').onchange = () => render();
+$('check').onclick = check;
+
+requireMember(async (session) => {
+  me = session.user.id;
+  await load();
+  sb.channel('glossary').on('postgres_changes', { event: '*', schema: 'public', table: 'glossary_terms' }, p => {
+    if (p.eventType === 'DELETE') terms = terms.filter(t => t.id !== p.old.id);
+    else { const i = terms.findIndex(t => t.id === p.new.id); if (i >= 0) terms[i] = p.new; else terms.push(p.new); terms.sort((a, b) => a.ko.localeCompare(b.ko, 'ko')); }
+    render(p.new?.id); warn();
+    if (p.new && p.new.updated_by && p.new.updated_by !== me) { $('live').textContent = `방금 다른 사용자가 '${p.new.ko}'을(를) ${p.eventType === 'INSERT' ? '추가' : '수정'}했습니다`; }
+  }).subscribe(s => { if (s === 'SUBSCRIBED' && $('live').textContent === '연결 중…') { $('live').textContent = '실시간 연결됨'; $('live').className = 'pill ok'; } });
+});
+</script>
+</body></html>
