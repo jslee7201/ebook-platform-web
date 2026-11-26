@@ -9,6 +9,7 @@
   --bg:#0f1719; --surface:#162226; --ink:#e3edef; --muted:#9cb0b5; --line:#2a3b40;
   --accent:#6cc3d4; --accent-soft:#1b3238; --warn:#f0c46c; --warn-soft:#3a2f17; --bad:#f29a90; --bad-soft:#3b1f1c; --ok:#7fd1a2; --ok-soft:#183126; color-scheme:dark}}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 var(--body)}
 a{color:var(--accent)}
 button,input,select,textarea{font:inherit;color:inherit}
