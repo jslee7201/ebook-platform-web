@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>편집 지시문</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@700&display=swap">
+<link rel="stylesheet" href="app.css?v=5">
+<style>
+.n{border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:grid;gap:8px;background:var(--surface)}
+.n .ctx{font-size:13px;color:var(--muted);line-height:1.7;overflow-wrap:anywhere}
+.n mark{background:var(--warn-soft);color:var(--warn);border-radius:3px;padding:0 2px}
+.n .say{font-weight:600;overflow-wrap:anywhere}
+.out{white-space:pre-wrap}
+</style>
+</head><body>
+<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="index.html">홈</a><a href="manuscripts.html">원고 입력</a><a href="convert.html">변환 확인</a><a href="notes.html" aria-current="page">편집 지시문</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
+<main>
+  <div>
+    <h1>원고 속 편집 지시문</h1>
+    <p class="muted" style="margin:0">저자가 본문·캡션 안에 편집자에게 남긴 작업 지시("그림은 원본 사용", "B에 백혈구 표기" 등)를 변환 저장 때 자동으로 찾습니다. <b>확실</b>한 것은 본문에서 빼서 할 일로 넘기고, <b>의심</b>스러운 것은 본문에 둔 채 판정을 기다립니다. 의심 항목이 남아 있으면 원고를 '확인 완료'로 바꿀 수 없습니다.</p>
+  </div>
+  <div class="row"><label class="note" for="ms">원고</label><select id="ms" style="min-width:16em"></select><span id="msinfo" class="note"></span></div>
+
+  <section class="card" aria-labelledby="l-h">
+    <div class="row" style="justify-content:space-between">
+      <h2 id="l-h">지시문 <span id="n" class="pill"></span></h2>
+      <div class="row"><label class="note" for="fs">상태</label><select id="fs"><option value="">전체</option><option>확인 필요</option><option>지시문(할 일)</option><option>처리 완료</option><option>본문 유지</option></select></div>
+    </div>
+    <div id="sum" class="row"></div>
+    <div id="list" style="display:grid;gap:10px"></div>
+    <div id="msg" class="msg bad" hidden></div>
+  </section>
+
+  <section class="card" aria-labelledby="t-h">
+    <h2 id="t-h">규칙 시험</h2>
+    <p class="note" style="margin:0">원고 문장을 붙여 넣으면 어떤 문장이 지시문으로 잡히는지 바로 보여 줍니다(저장하지 않음). 규칙: <span id="rules"></span></p>
+    <div class="row"><label class="note" for="tk">블록 종류</label><select id="tk"><option value="para">본문</option><option value="figure">그림 캡션</option><option value="activity">활동·문제</option><option value="quote">인용문</option></select></div>
+    <textarea id="tin" placeholder="예: 세포의 여러 가지 모양. A. 편평세포. 지시선과 텍스트는 직접 편집해야 합니다(그림은 원본 사용)"></textarea>
+    <div id="tout" class="out"></div>
+  </section>
+</main>
+
+<dialog id="dd">
+  <form id="df" method="dialog" style="display:grid;gap:12px">
+    <h2>처리 완료</h2>
+    <p id="dq" class="note" style="margin:0"></p>
+    <label class="note" for="dm">무엇을 처리했나요?</label><input id="dm" required placeholder="예: 그림 2.2 지시선·글자를 새로 그림 (재작업 지시서 B)">
+    <div class="row" style="justify-content:flex-end"><button class="btn ghost" value="cancel" formnovalidate>닫기</button><button class="btn" value="save">완료</button></div>
+  </form>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="config.js?v=2"></script>
+<script src="notesplit.js?v=1"></script>
+<script>
+const $ = id => document.getElementById(id);
+const ST = { '확인 필요': 'warn', '지시문(할 일)': 'bad', '처리 완료': 'ok', '본문 유지': '' };
+let mss = [], cur = new URLSearchParams(location.search).get('ms'), notes = [], blocks = {}, logs = {}, doing = null;
+$('rules').textContent = NoteSplit.RULES.map(r => `${r.id}(${r.level})`).join(', ');
+const fmt = t => t ? new Date(t).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+
+async function loadMs() {
+  const { data } = await sb.from('manuscripts').select('id,filename,kind,convert_status,book_id').order('created_at', { ascending: false });
+  mss = data || []; if (!cur || !mss.find(m => m.id === cur)) cur = mss[0]?.id;
+  const { data: cnt } = await sb.from('manuscript_notes').select('manuscript_id,status');
+  const c = {}; (cnt || []).forEach(x => { if (x.status === '확인 필요') c[x.manuscript_id] = (c[x.manuscript_id] || 0) + 1; });
+  $('ms').innerHTML = mss.map(m => `<option value="${m.id}" ${m.id === cur ? 'selected' : ''}>${esc(m.filename)} · ${esc(m.convert_status)}${c[m.id] ? ` · 확인 필요 ${c[m.id]}` : ''}</option>`).join('') || '<option>원고가 없습니다</option>';
+}
+async function load() {
+  if (!cur) { $('list').innerHTML = '<p class="note">원고가 없습니다.</p>'; return; }
+  const m = mss.find(x => x.id === cur); $('msinfo').innerHTML = `상태 ${esc(m.convert_status)} · <a href="convert.html">변환 확인에서 열기</a>`;
+  const [{ data: n }, { data: b }] = await Promise.all([
+    sb.from('manuscript_notes').select('*').eq('manuscript_id', cur).order('block_seq'),
+    sb.from('structured_blocks').select('seq,type,page,text').eq('manuscript_id', cur)]);
+  notes = n || []; blocks = Object.fromEntries((b || []).map(x => [x.seq, x])); logs = {};
+  if (notes.length) { const { data: lg } = await sb.from('manuscript_note_log').select('*').in('note_id', notes.map(x => x.id)).order('changed_at'); (lg || []).forEach(l => (logs[l.note_id] ||= []).push(l)); }
+  render();
+}
+function ctx(n) {
+  const b = blocks[n.block_seq]; if (!b) return '<span class="note">블록이 없습니다(다시 변환됨)</span>';
+  const t = esc(b.text); const k = esc(n.note_text);
+  return `${esc(b.type)} · ${b.page}쪽 — ` + (t.includes(k) ? t.replace(k, `<mark>${k}</mark>`) : t + ' <span class="pill">본문에서 빠짐</span>');
+}
+function render() {
+  const c = s => notes.filter(n => n.status === s).length;
+  $('sum').innerHTML = Object.keys(ST).map(s => `<span class="pill ${ST[s]}">${s} ${c(s)}</span>`).join('');
+  const fs = $('fs').value, list = notes.filter(n => !fs || n.status === fs);
+  $('n').textContent = `${list.length} / ${notes.length}`;
+  $('list').innerHTML = list.length ? list.map(n => `<article class="n">
+    <div class="row"><span class="pill ${ST[n.status]}">${esc(n.status)}</span><span class="pill ${n.level === '확실' ? '' : 'warn'}">${esc(n.level)} · ${esc(n.rule)}</span><span class="note">블록 ${n.block_seq}</span></div>
+    <div class="say">“${esc(n.note_text)}”</div>
+    <div class="ctx">${ctx(n)}</div>
+    ${n.task_memo ? `<div class="note"><b>처리:</b> ${esc(n.task_memo)} · ${fmt(n.decided_at)}</div>` : ''}
+    <div class="row" style="justify-content:space-between">
+      <details><summary class="note">기록 ${(logs[n.id] || []).length}건</summary><ol class="note">${(logs[n.id] || []).map(l => `<li>${fmt(l.changed_at)} · ${esc(l.action)}${l.memo ? ' — ' + esc(l.memo) : ''}</li>`).join('')}</ol></details>
+      <div class="row">
+        ${n.status === '확인 필요' ? `<button class="btn" data-act="지시문 맞음" data-id="${n.id}">지시문 맞음 (본문에서 빼기)</button>` : ''}
+        ${n.status === '지시문(할 일)' ? `<button class="btn" data-done="${n.id}">처리 완료</button>` : ''}
+        ${n.status !== '본문 유지' ? `<button class="btn ghost" data-act="본문 유지" data-id="${n.id}">본문 유지</button>` : ''}
+      </div>
+    </div></article>`).join('') : '<p class="note">이 원고에서 찾은 편집 지시문이 없습니다.</p>';
+}
+async function act(id, action, memo) {
+  const { error } = await sb.rpc('decide_manuscript_note', { p_id: +id, p_action: action, p_memo: memo || null });
+  $('msg').hidden = !error; if (error) $('msg').textContent = '처리하지 못했습니다: ' + error.message;
+  await loadMs(); await load();
+}
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-act]'); if (a) { if (a.dataset.act === '본문 유지' && !confirm('이 문장을 본문(인쇄되는 글)으로 되돌릴까요?')) return; act(a.dataset.id, a.dataset.act); return; }
+  const d = e.target.closest('[data-done]'); if (d) { doing = d.dataset.done; $('dq').textContent = notes.find(n => n.id == doing).note_text; $('dm').value = ''; $('dd').showModal(); }
+});
+$('df').addEventListener('submit', e => { if (e.submitter?.value !== 'save') return; e.preventDefault(); const m = $('dm').value.trim(); if (!m) return; $('dd').close(); act(doing, '처리 완료', m); });
+$('ms').onchange = () => { cur = $('ms').value; history.replaceState(null, '', '?ms=' + cur); load(); };
+$('fs').onchange = render;
+const test = () => { const r = NoteSplit.detect($('tin').value, { kind: $('tk').value });
+  $('tout').textContent = $('tin').value.trim() ? (r.notes.length ? r.notes.map(n => `• [${n.level} · ${n.rule}] ${n.text}`).join('\n') + `\n\n본문에 남는 글: ${r.keep}` : '지시문으로 잡힌 문장이 없습니다.') : ''; };
+$('tin').oninput = $('tk').onchange = test;
+requireMember(async () => { await loadMs(); await load(); });
+</script>
+</body></html>
