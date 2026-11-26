@@ -54,3 +54,7 @@ mark.old{background:var(--bad-soft);color:var(--bad);border-radius:3px;padding:0
 mark.var{background:var(--warn-soft);color:var(--warn);border-radius:3px;padding:0 2px}
 .out{white-space:pre-wrap;line-height:1.9;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px}
 @media (max-width:560px){.form{grid-template-columns:1fr}}
+
+.row>*{max-width:100%}
+input[type=file]{max-width:100%}
+select{max-width:100%}
