@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>표 편집기</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@700&display=swap">
+<link rel="stylesheet" href="app.css?v=5">
+<style>
+.ed{overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface);max-height:65vh}
+.ed table{min-width:0;width:100%;table-layout:auto}
+.ed td{border:1px solid var(--line);white-space:pre-wrap;min-width:60px;cursor:cell;font-size:14px;position:relative}
+.ed tr.hd td{background:var(--accent-soft);font-weight:600}
+.ed td.sel{outline:2px solid var(--accent);outline-offset:-2px;background:rgba(15,92,110,.08)}
+.ed td.warn{box-shadow:inset 3px 0 0 var(--warn)}
+.ed td[contenteditable="true"]{outline:2px solid var(--warn);background:var(--surface);cursor:text}
+.ed td .sp{position:absolute;top:1px;right:3px;font-size:10px;color:var(--muted)}
+.tools{display:flex;flex-wrap:wrap;gap:6px}
+.tools .btn{padding:5px 10px;font-size:13px}
+.wl{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.wl li{display:flex;gap:8px;align-items:center;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.tlist{display:flex;flex-wrap:wrap;gap:6px}
+</style>
+</head><body>
+<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="index.html">홈</a><a href="manuscripts.html">원고 입력</a><a href="tables.html" aria-current="page">표 편집기</a><a href="glossary.html">공용 용어집</a><a href="rights.html">권리 게이트</a><a href="figures.html">그림 대장</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
+<main>
+  <div>
+    <h1>표 편집기</h1>
+    <p class="muted" style="margin:0">원고를 변환하면 표의 셀 병합이 풀려 칸이 밀리거나, 묶음 제목 줄·각주 줄이 한 칸에 몰립니다. 자동 점검이 의심 줄을 찾아 고칠 방법을 제안하고, 사람이 칸을 병합·분할해 원래 모양으로 되돌립니다.</p>
+  </div>
+  <div class="row" role="tablist" id="books"></div>
+  <div class="tlist" id="tlist"></div>
+
+  <section class="card" id="edcard" hidden>
+    <div class="row" style="justify-content:space-between">
+      <h2 id="tt"></h2>
+      <div class="row"><label class="note" for="status">상태</label><select id="status"><option>추출됨</option><option>확인 중</option><option>확인 완료</option></select>
+        <button class="btn" id="save" disabled>저장</button></div>
+    </div>
+    <div class="form" style="grid-template-columns:5em 1fr">
+      <label for="cap">캡션</label><input id="cap">
+      <label for="hdr">머리글 줄</label><select id="hdr"><option value="0">없음</option><option value="1">1줄</option><option value="2">2줄</option></select>
+    </div>
+    <div>
+      <h2 style="font-size:15px">자동 점검 <span id="wc" class="pill"></span></h2>
+      <ul class="wl" id="warns"></ul>
+    </div>
+    <div class="tools" role="toolbar" aria-label="표 편집 도구">
+      <button class="btn ghost" data-op="merge">칸 병합</button><button class="btn ghost" data-op="unmerge">병합 풀기</button>
+      <button class="btn ghost" data-op="rowAbove">위에 줄 넣기</button><button class="btn ghost" data-op="rowBelow">아래에 줄 넣기</button><button class="btn ghost" data-op="rowDel">줄 지우기</button>
+      <button class="btn ghost" data-op="colLeft">왼쪽에 칸 넣기</button><button class="btn ghost" data-op="colRight">오른쪽에 칸 넣기</button><button class="btn ghost" data-op="colDel">칸 지우기</button>
+      <button class="btn ghost" data-op="undo">되돌리기</button>
+    </div>
+    <p class="note" style="margin:0">칸을 누르면 선택, Shift를 누른 채 누르면 범위 선택입니다. 칸을 두 번 누르면 글을 고칠 수 있습니다(줄바꿈은 Shift+Enter).</p>
+    <div class="ed"><table><tbody id="grid"></tbody></table></div>
+    <div class="form" style="grid-template-columns:5em 1fr"><label for="note">표 주석</label><input id="note" placeholder="표 아래 각주·출처"></div>
+    <div id="msg" class="msg" hidden></div>
+  </section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="config.js?v=2"></script>
+<script>
+const $ = id => document.getElementById(id);
+let books = [], tables = [], curBook = null, T = null, G = null, sel = null, anchor = null, hist = [], dirty = false;
+const clone = o => JSON.parse(JSON.stringify(o));
+const nC = () => G[0]?.length || 0, nR = () => G.length;
+function msg(t, bad) { const m = $('msg'); m.hidden = false; m.textContent = t; m.className = 'msg' + (bad ? ' bad' : ''); clearTimeout(msg.t); msg.t = setTimeout(() => m.hidden = true, 5000); }
+function push() { hist.push(clone(G)); if (hist.length > 50) hist.shift(); dirty = true; $('save').disabled = false; }
+
+// 병합 정보로 가려진 칸 다시 계산
+function normalize() {
+  G.forEach(r => r.forEach(c => { delete c.hid; c.rs = Math.max(1, c.rs || 1); c.cs = Math.max(1, c.cs || 1); }));
+  G.forEach((r, i) => r.forEach((c, j) => { if (c.hid) return;
+    c.rs = Math.min(c.rs, nR() - i); c.cs = Math.min(c.cs, nC() - j);
+    for (let a = i; a < i + c.rs; a++) for (let b = j; b < j + c.cs; b++) if (a !== i || b !== j) { G[a][b].hid = true; G[a][b].rs = 1; G[a][b].cs = 1; } }));
+}
+function anchorOf(r, c) { for (let i = r; i >= 0; i--) for (let j = c; j >= 0; j--) { const x = G[i][j]; if (!x.hid && i + x.rs > r && j + x.cs > c) return [i, j]; } return [r, c]; }
+function rect() { if (!sel) return null; let [r0, c0, r1, c1] = [Math.min(sel[0], sel[2]), Math.min(sel[1], sel[3]), Math.max(sel[0], sel[2]), Math.max(sel[1], sel[3])];
+  // 걸친 병합 영역까지 넓힘
+  let changed = true; while (changed) { changed = false;
+    for (let i = r0; i <= r1; i++) for (let j = c0; j <= c1; j++) { const [ai, aj] = anchorOf(i, j), a = G[ai][aj];
+      if (ai < r0) { r0 = ai; changed = true; } if (aj < c0) { c0 = aj; changed = true; }
+      if (ai + a.rs - 1 > r1) { r1 = ai + a.rs - 1; changed = true; } if (aj + a.cs - 1 > c1) { c1 = aj + a.cs - 1; changed = true; } } }
+  return [r0, c0, r1, c1]; }
+
+const OPS = {
+  merge() { const q = rect(); if (!q) return; const [r0, c0, r1, c1] = q; if (r0 === r1 && c0 === c1) return msg('두 칸 이상을 선택하세요.', true);
+    const texts = []; for (let i = r0; i <= r1; i++) for (let j = c0; j <= c1; j++) { const x = G[i][j]; if (!x.hid && x.t.trim()) texts.push(x.t.trim()); if (i !== r0 || j !== c0) { x.t = ''; } }
+    Object.assign(G[r0][c0], { t: texts.join('\n'), rs: r1 - r0 + 1, cs: c1 - c0 + 1 }); sel = [r0, c0, r0, c0]; },
+  unmerge() { const [i, j] = anchorOf(sel[0], sel[1]); G[i][j].rs = 1; G[i][j].cs = 1; },
+  rowAbove() { insRow(sel[0]); }, rowBelow() { const [i] = anchorOf(sel[0], sel[1]); insRow(i + G[i][anchorOf(sel[0], sel[1])[1]].rs); },
+  rowDel() { if (nR() < 2) return; delRow(sel[0]); sel = [Math.min(sel[0], nR() - 1), sel[1], Math.min(sel[0], nR() - 1), sel[1]]; },
+  colLeft() { insCol(sel[1]); }, colRight() { const [i, j] = anchorOf(sel[0], sel[1]); insCol(j + G[i][j].cs); },
+  colDel() { if (nC() < 2) return; delCol(sel[1]); sel = [sel[0], Math.min(sel[1], nC() - 1), sel[0], Math.min(sel[1], nC() - 1)]; },
+};
+function insRow(at) { G.forEach((r, i) => r.forEach((c, j) => { if (!c.hid && i < at && i + c.rs > at) c.rs++; })); G.splice(at, 0, Array.from({ length: nC() }, () => ({ t: '' }))); }
+function delRow(at) { G[at].forEach((c, j) => { if (!c.hid && c.rs > 1 && at + 1 < nR()) Object.assign(G[at + 1][j], { t: c.t, rs: c.rs - 1, cs: c.cs }); });
+  G.forEach((r, i) => r.forEach(c => { if (!c.hid && i < at && i + c.rs > at) c.rs--; })); G.splice(at, 1); }
+function insCol(at) { G.forEach((r, i) => r.forEach((c, j) => { if (!c.hid && j < at && j + c.cs > at) c.cs++; })); G.forEach(r => r.splice(at, 0, { t: '' })); }
+function delCol(at) { G.forEach((r, i) => { const c = r[at]; if (!c.hid && c.cs > 1 && at + 1 < nC()) Object.assign(r[at + 1], { t: c.t, rs: c.rs, cs: c.cs - 1 }); });
+  G.forEach(r => r.forEach((c, j) => { if (!c.hid && j < at && j + c.cs > at) c.cs--; })); G.forEach(r => r.splice(at, 1)); }
+
+// 자동 점검: 병합이 풀린 흔적 찾기 + 고치기
+function checks() {
+  const out = [], n = nC(), hdr = +$('hdr').value;
+  G.forEach((r, i) => {
+    const vis = r.filter(c => !c.hid), filled = r.filter(c => !c.hid && c.t.trim());
+    const raw = r[0].raw_len;
+    if (raw && raw < n) {
+      const k = n - raw;
+      out.push({ i, cls: 'warn', t: `${i + 1}째 줄: 칸이 ${k}개 모자랍니다 (병합이 풀려 앞으로 밀린 것으로 보임)`,
+        fixes: [{ l: `위 칸과 세로 병합 (앞 ${k}칸)`, f: () => fixRowspan(i, k) }, { l: `첫 칸을 가로 ${k + 1}칸으로`, f: () => fixColspan(i, k) }] });
+    } else if (i >= hdr && filled.length === 1 && vis.length > 1 && vis[0].t.trim() && !(raw === 1 && vis[0].t.length > 60)) {
+      out.push({ i, cls: 'warn', t: `${i + 1}째 줄: 첫 칸만 있습니다 (묶음 제목 줄로 보임)`, fixes: [{ l: '가로로 전체 병합', f: () => { G[i][0].cs = n; } }] });
+    } else if (raw === 1 || (filled.length === 1 && vis[0].t.length > 60 && /^[†*주※]/.test(vis[0].t.trim()))) {
+      out.push({ i, cls: 'warn', t: `${i + 1}째 줄: 긴 글 한 칸 (각주로 보임)`, fixes: [{ l: '표 주석으로 옮기기', f: () => { $('note').value = ($('note').value ? $('note').value + ' ' : '') + G[i][0].t.trim(); delRow(i); } }, { l: '가로로 전체 병합', f: () => { G[i][0].cs = n; delete G[i][0].raw_len; } }] });
+    }
+    r.forEach((c, j) => { if (c.hid) return;
+      const glued = c.t.match(/\)(?=[A-Za-z가-힣])|[가-힣a-z](?=[a-z]?RNA:|[A-Z][a-z]+ [a-z]+ (?:[A-Z]|$))/g);
+      if (glued && !c.t.includes('\n')) out.push({ i, j, cls: 'warn', t: `${i + 1}째 줄 ${j + 1}째 칸: 여러 항목이 붙어 있는 듯합니다 ("${c.t.slice(0, 40)}…")`,
+        fixes: [{ l: '항목마다 줄바꿈', f: () => { c.t = c.t.replace(/\)(?=[A-Za-z가-힣])/g, ')\n').replace(/([가-힣a-z])(?=[a-z]?RNA:)/g, '$1\n'); } }] });
+    });
+  });
+  return out;
+}
+function fixRowspan(i, k) { const row = G[i], texts = row.filter(c => !c.hid).slice(0, n2(i)).map(c => c.t);
+  // 줄의 글을 오른쪽으로 k칸 밀고, 앞 k칸은 위 칸의 세로 병합에 포함
+  for (let j = nC() - 1; j >= k; j--) row[j].t = row[j - k].t; for (let j = 0; j < k; j++) { row[j].t = ''; const [ai, aj] = anchorOf(i - 1, j); if (aj === j) G[ai][aj].rs = (i - ai) + 1; }
+  delete row[0].raw_len; delete row[k]?.raw_len; }
+function n2(i) { return nC(); }
+function fixColspan(i, k) { const row = G[i]; for (let j = nC() - 1; j > k; j--) row[j].t = row[j - k].t; for (let j = 1; j <= k; j++) row[j].t = ''; row[0].cs = k + 1; delete row[0].raw_len; }
+
+function render() {
+  normalize();
+  const hdr = +$('hdr').value, warns = checks(), warnRows = new Set(warns.map(w => w.i));
+  const q = sel ? rect() : null;
+  $('grid').innerHTML = G.map((r, i) => `<tr class="${i < hdr ? 'hd' : ''}">${r.map((c, j) => c.hid ? '' :
+    `<td data-r="${i}" data-c="${j}" rowspan="${c.rs}" colspan="${c.cs}" class="${q && i >= q[0] && i <= q[2] && j >= q[1] && j <= q[3] ? 'sel' : ''} ${warnRows.has(i) && j === 0 ? 'warn' : ''}">${esc(c.t)}${c.rs > 1 || c.cs > 1 ? `<span class="sp">${c.rs > 1 ? '↕' + c.rs : ''}${c.cs > 1 ? '↔' + c.cs : ''}</span>` : ''}</td>`).join('')}</tr>`).join('');
+  $('wc').textContent = warns.length ? warns.length + '건' : '없음'; $('wc').className = 'pill ' + (warns.length ? 'warn' : 'ok');
+  $('warns').innerHTML = warns.map((w, k) => `<li><span>${esc(w.t)}</span>${w.fixes.map((f, m) => `<button class="btn ghost" data-fix="${k}:${m}">${esc(f.l)}</button>`).join('')}</li>`).join('') || '<li class="note">의심되는 곳이 없습니다.</li>';
+  render.w = warns;
+}
+
+async function loadBooks() { const { data } = await sb.from('books').select('id,title').order('title'); books = data || []; curBook = curBook || books[0]?.id;
+  $('books').innerHTML = books.map(b => `<button class="btn ${b.id === curBook ? '' : 'ghost'}" data-book="${b.id}">${esc(b.title)}</button>`).join(''); }
+async function loadTables() { const { data } = await sb.from('book_tables').select('id,no,caption,status').eq('book_id', curBook);
+  tables = (data || []).sort((a, b) => a.no.localeCompare(b.no, 'ko', { numeric: true }));
+  $('tlist').innerHTML = tables.map(t => `<button class="btn ${T && T.id === t.id ? '' : 'ghost'}" data-table="${t.id}">표 ${esc(t.no)} <span class="pill ${t.status === '확인 완료' ? 'ok' : t.status === '확인 중' ? '' : 'warn'}">${esc(t.status)}</span></button>`).join('') || '<span class="note">이 책에 등록된 표가 없습니다.</span>'; }
+async function openTable(id) {
+  if (dirty && !confirm('저장하지 않은 수정이 있습니다. 다른 표를 열까요?')) return;
+  const { data } = await sb.from('book_tables').select('*').eq('id', id).single(); T = data; G = clone(T.grid); hist = []; dirty = false; sel = [0, 0, 0, 0];
+  $('edcard').hidden = false; $('tt').textContent = `표 ${T.no}`; $('cap').value = T.caption || ''; $('hdr').value = String(T.header_rows); $('note').value = T.note || ''; $('status').value = T.status; $('save').disabled = true;
+  render(); loadTables();
+}
+async function save() {
+  normalize();
+  const row = { grid: G, caption: $('cap').value.trim() || null, header_rows: +$('hdr').value, note: $('note').value.trim() || null, status: $('status').value };
+  const { data, error } = await sb.from('book_tables').update(row).eq('id', T.id).eq('version', T.version).select().single();
+  if (error || !data) return msg(error ? '저장하지 못했습니다: ' + error.message : '다른 사람이 먼저 이 표를 고쳤습니다. 다시 열어 주세요.', true);
+  T = data; dirty = false; $('save').disabled = true; msg('저장했습니다.'); loadTables();
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-book]'); if (b) { curBook = b.dataset.book; T = null; $('edcard').hidden = true; loadBooks(); loadTables(); return; }
+  const t = e.target.closest('[data-table]'); if (t) { openTable(+t.dataset.table); return; }
+  const op = e.target.closest('[data-op]');
+  if (op && G) { if (op.dataset.op === 'undo') { if (hist.length) { G = hist.pop(); render(); } return; } if (!sel) return msg('칸을 먼저 고르세요.', true); push(); OPS[op.dataset.op](); render(); return; }
+  const fx = e.target.closest('[data-fix]');
+  if (fx) { const [k, m] = fx.dataset.fix.split(':').map(Number); push(); render.w[k].fixes[m].f(); render(); msg('고쳤습니다. 결과를 확인하세요(되돌리기 가능).'); return; }
+  const td = e.target.closest('td[data-r]');
+  if (td && td.getAttribute('contenteditable') !== 'true') { const r = +td.dataset.r, c = +td.dataset.c; sel = e.shiftKey && sel ? [sel[0], sel[1], r, c] : [r, c, r, c]; render(); }
+});
+document.addEventListener('dblclick', e => { const td = e.target.closest('td[data-r]'); if (!td) return;
+  td.textContent = G[+td.dataset.r][+td.dataset.c].t; td.setAttribute('contenteditable', 'true'); td.focus(); });
+document.addEventListener('keydown', e => { const td = e.target.closest('td[contenteditable="true"]'); if (td && e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); td.blur(); } if (td && e.key === 'Escape') { td.removeAttribute('contenteditable'); render(); } });
+document.addEventListener('focusout', e => { const td = e.target.closest('td[contenteditable="true"]'); if (!td) return;
+  const c = G[+td.dataset.r][+td.dataset.c], v = td.innerText.replace(/\n$/, ''); td.removeAttribute('contenteditable'); if (v !== c.t) { push(); c.t = v; } render(); });
+['cap', 'note'].forEach(id => $(id).addEventListener('input', () => { dirty = true; $('save').disabled = false; }));
+$('hdr').onchange = () => { dirty = true; $('save').disabled = false; render(); };
+$('status').onchange = () => { dirty = true; $('save').disabled = false; };
+$('save').onclick = save;
+window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+requireMember(async () => { await loadBooks(); await loadTables(); });
+</script>
+</body></html>

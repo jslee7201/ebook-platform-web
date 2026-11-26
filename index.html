@@ -4,7 +4,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@700&display=swap">
 <link rel="stylesheet" href="app.css?v=5">
 </head><body>
-<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav id="nav" hidden><a href="index.html" aria-current="page">홈</a><a href="manuscripts.html">원고 입력</a><a href="glossary.html">공용 용어집</a><a href="rights.html">권리 게이트</a><a href="figures.html">그림 대장</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost" hidden>로그아웃</button></header>
+<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav id="nav" hidden><a href="index.html" aria-current="page">홈</a><a href="manuscripts.html">원고 입력</a><a href="tables.html">표 편집기</a><a href="glossary.html">공용 용어집</a><a href="rights.html">권리 게이트</a><a href="figures.html">그림 대장</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost" hidden>로그아웃</button></header>
 <main>
   <section id="login" class="card" hidden style="max-width:420px">
     <h1>로그인</h1>
@@ -30,6 +30,7 @@
       <ul style="margin:0;padding-left:1.2em;display:grid;gap:6px">
         <li><a href="manuscripts.html">원고 입력</a> <span class="pill ok">P-01</span><br><span class="note">원고 원본을 비공개 보관함에 보관하고 쪽별 글자를 꺼냅니다. 글자층이 없거나 깨진 PDF는 그 쪽만 OCR로 읽고, 추출 가능한 원본 요청을 관리합니다.</span></li>
         <li><a href="convert.html">변환 확인</a> <span class="pill ok">P-02 · P-16 · P-17</span><br><span class="note">PDF 원고를 구조화 블록으로 바꿉니다. 2단 읽기 순서, 줄 단위로 끊긴 문단 잇기, 캡션·그림 속 글자 분리를 자동으로 하고, 사람이 쪽마다 원본 옆에서 확인·수정합니다.</span></li>
+        <li><a href="tables.html">표 편집기</a> <span class="pill ok">P-03</span><br><span class="note">변환으로 풀린 셀 병합을 되돌립니다. 칸이 밀린 줄, 묶음 제목 줄, 각주 줄, 한 칸에 붙은 여러 항목을 자동으로 찾아 고칠 방법을 제안하고, 칸 병합·분할·줄·칸 넣기로 직접 고칩니다.</span></li>
         <li><a href="glossary.html">공용 용어집</a> <span class="pill ok">P-11 · P-12 · P-13</span><br><span class="note">여러 편집자·역자가 같은 용어집을 실시간으로 함께 씁니다. 같은 영문에 다른 한글, 동음이의어, 옛 용어를 자동으로 경고하고, 원고 문장을 붙여 넣으면 용어를 검사합니다.</span></li>
         <li><a href="rights.html">권리 게이트</a> <span class="pill ok">P-07</span><br><span class="note">책마다 산출물(종이책·전자책·웹뷰어·챗봇·AI 번역·오디오·영상)별 계약 권리와 추가 동의를 관리합니다. 권리가 없으면 배포 상태로 바꿀 수 없습니다.</span></li>
         <li><a href="figures.html">그림 대장</a> <span class="pill ok">P-05</span><br><span class="note">그림마다 출처·허락된 산출물·인물 사진 동의를 기록합니다. 권리가 확인되지 않은 그림이 있으면 해당 산출물 배포가 막힙니다.</span></li>
