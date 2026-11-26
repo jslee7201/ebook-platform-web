@@ -82,7 +82,32 @@
     return [s, info];
   }
 
-  async function optimize(pkg, o, frame, onProgress = () => {}) {
+  // 편집자가 고정한 그림: pin = { after: 패키지 블록 번호(이 블록 뒤에 둠), size: ''|'fs1'|'fs2' }
+  function applyPin(order, ch, no, pin) {
+    const fi = order.findIndex(i => ch.blocks[i].fig === no); if (fi < 0) return order;
+    const fig = order[fi], rest = order.slice(0, fi).concat(order.slice(fi + 1));
+    let k = rest.indexOf(pin.after); if (k < 0) return order;
+    k++; while (k < rest.length && ch.blocks[rest[k]].fig && ch.blocks[rest[k]].fig < no) k++;   // 같은 자리 앞 그림 뒤로
+    return rest.slice(0, k).concat([fig], rest.slice(k));
+  }
+  // 지금 배치에서 그림이 어느 블록 뒤에 있는지 (고정할 때 저장하는 값)
+  function pinOf(st, ch, no) {
+    const order = (st.order && st.order[ch.id]) || ch.blocks.map((_, i) => i); const fi = order.findIndex(i => ch.blocks[i].fig === no);
+    let j = fi - 1; while (j >= 0 && ch.blocks[order[j]].fig) j--;
+    return { after: j >= 0 ? order[j] : -1, size: (st.sizeCls && st.sizeCls[no]) || '' };
+  }
+  // 그림을 한 블록 앞·뒤로 (다른 그림은 건너뜀). 넘은 제목이 있으면 알려 줌
+  function nudge(st, ch, no, dir) {
+    const order = [...((st.order && st.order[ch.id]) || ch.blocks.map((_, i) => i))]; const fi = order.findIndex(i => ch.blocks[i].fig === no);
+    let t = fi + dir; while (t >= 0 && t < order.length && ch.blocks[order[t]].fig) t += dir;
+    if (t < 0 || t >= order.length) return { st, crossed: null };
+    const [fig] = order.splice(fi, 1); order.splice(t, 0, fig);
+    const crossed = ['h2', 'h3', 'h4'].includes(ch.blocks[order[dir > 0 ? t - 1 : t + 1]]?.tag) ? ch.blocks[order[dir > 0 ? t - 1 : t + 1]].tag : null;
+    return { st: { ...st, order: { ...st.order, [ch.id]: order } }, crossed };
+  }
+  function evaluate(pkg, m) { return pkg.chapters.flatMap(ch => ch.blocks.filter(b => b.fig).map(b => ({ figure: b.fig, ...scoreFig(b.fig, m)[1] }))); }
+
+  async function optimize(pkg, o, frame, onProgress = () => {}, pins = {}) {
     const st = { order: {}, sizeCls: {} }; const report = []; let trials = 0;
     const SPEN = { '': 0, fs1: .2, fs2: .5 };
     for (const ch of pkg.chapters) {
@@ -97,6 +122,12 @@
           trials++; onProgress({ figure: no, trials });
           return scoreFig(no, await render(buildHtml(pkg, { ...o, measure: true }, s2), frame));
         };
+        if (pins[no]) {   // 편집자가 고정한 그림은 찾지 않고 그 자리·크기 그대로
+          const ord = applyPin(st.order[ch.id], ch, no, pins[no]); const sc = pins[no].size || '';
+          const [, inf] = await trial(ord, sc);
+          st.order[ch.id] = ord; if (sc) st.sizeCls[no] = sc; else delete st.sizeCls[no];
+          report.push({ figure: no, shift: 0, pinned: true, size: sc || '원래 크기', ...inf }); continue;
+        }
         const cur0 = st.order[ch.id];
         const [bs, bi] = await trial(cur0, st.sizeCls[no] || '');
         let best = { s: bs, d: 0, sc: '', order: cur0, info: bi };
@@ -130,9 +161,9 @@
     }
     // 최종 확인: 전체를 한 번 더 나눠 그림-인용 쪽을 다시 잼
     const m = await render(buildHtml(pkg, { ...o, measure: true }, st), frame); trials++;
-    const final = pkg.chapters.flatMap(ch => ch.blocks.filter(b => b.fig).map(b => ({ figure: b.fig, ...scoreFig(b.fig, m)[1] })));
+    const final = evaluate(pkg, m);
     return { state: st, report, final, pages: m.pages, trials };
   }
-  const api = { buildHtml, render, optimize, memoCss, scoreFig, version: '1.1', PAGED };
+  const api = { buildHtml, render, optimize, memoCss, scoreFig, applyPin, pinOf, nudge, evaluate, version: '1.2', PAGED };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.LayoutEngine = api;
 })(typeof window !== 'undefined' ? window : globalThis);

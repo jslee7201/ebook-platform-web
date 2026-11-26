@@ -41,7 +41,8 @@
 
   <section class="card" aria-labelledby="r-h">
     <div class="row" style="justify-content:space-between"><h2 id="r-h">그림 배치 결과</h2><div id="sum" class="row"></div></div>
-    <div class="tbl"><table><thead><tr><th>그림</th><th>결과</th><th>그림 쪽</th><th>인용 쪽</th><th>자리 이동</th><th>크기</th><th>앞쪽 아래 빈칸</th></tr></thead><tbody id="rows"><tr><td colspan="7" class="note">아직 계산하지 않았습니다.</td></tr></tbody></table></div>
+    <div class="tbl"><table><thead><tr><th>그림</th><th>결과</th><th>그림 쪽</th><th>인용 쪽</th><th>자리 이동</th><th>크기</th><th>앞쪽 아래 빈칸</th><th>수동 조정</th></tr></thead><tbody id="rows"><tr><td colspan="8" class="note">아직 계산하지 않았습니다.</td></tr></tbody></table></div>
+    <div class="row"><button id="savePins" class="btn" type="button" disabled>수동 배치 저장</button><button id="clearPins" class="btn ghost" type="button">고정 모두 풀기</button><span id="pmsg2" class="note">▲▼로 그림을 한 블록씩 옮기거나 크기를 바꾸면 바로 다시 쪽을 나눠 보여 줍니다. 손댄 그림은 '고정'되어, 다음 자동 계산 때도 그 자리·크기를 지킵니다.</span></div>
     <details><summary class="note">계산 이력</summary><ol id="runs" class="note"></ol></details>
   </section>
 
@@ -52,10 +53,10 @@
 </main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
 <script src="config.js?v=2"></script>
-<script src="layoutengine.js?v=2"></script>
+<script src="layoutengine.js?v=3"></script>
 <script>
 const $ = id => document.getElementById(id);
-let books = [], cur = null, pkgRow = null, lay = null, figs = [], images = {}, lastState = null, uid = null, isAdmin = false, running = false;
+let books = [], cur = null, pkgRow = null, lay = null, figs = [], images = {}, lastState = null, uid = null, isAdmin = false, running = false, pins = {}, lastReport = [], pinsDirty = false;
 const fmt = t => new Date(t).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' });
 
 async function loadBooks() {
@@ -73,6 +74,9 @@ async function loadAll() {
   const pkg = pkgRow?.package;
   $('size').innerHTML = pkg ? Object.entries(pkg.sizes).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('') : '<option value="b5">4×6배판</option>';
   $('tpl').value = lay.template; $('size').value = lay.size; $('theme').value = lay.theme;
+  pins = (lay.pins && (!lay.pins_package_version || lay.pins_package_version === pkgRow?.version)) ? { ...lay.pins } : {}; pinsDirty = false; $('savePins').disabled = true; lastReport = [];
+  if (lay.pins && Object.keys(lay.pins).length && lay.pins_package_version && pkgRow && lay.pins_package_version !== pkgRow.version) $('pmsg2').textContent = `저장된 고정 배치는 패키지 v${lay.pins_package_version} 기준이라 지금(v${pkgRow.version})은 쓰지 않습니다.`;
+  else if (Object.keys(pins).length) $('pmsg2').textContent = `고정한 그림 ${Object.keys(pins).length}개: ${Object.keys(pins).join(', ')}. 자동 계산 때 이 자리·크기를 지킵니다.`;
   await loadImages();
   const n = pkg ? pkg.chapters.reduce((s, c) => s + c.blocks.length, 0) : 0;
   const want = pkg?.figure_files || [], have = want.filter(f => images[f]);
@@ -95,22 +99,62 @@ async function loadRuns() {
 }
 const opts = () => ({ size: $('size').value, theme: $('theme').value, memo: $('tpl').value === '학습서' ? 'outer' : 'none', images });
 function showRows(final, report) {
-  const rep = Object.fromEntries((report || []).map(r => [r.figure, r]));
+  if (report) lastReport = report;
+  const rep = Object.fromEntries((lastReport || []).map(r => [r.figure, r]));
   const sum = {}; final.forEach(f => sum[f.same] = (sum[f.same] || 0) + 1);
-  const cls = { '같은 쪽': 'ok', '같은 펼침면': '', '떨어짐': 'bad', '인용 없음': 'warn', '빈칸 40mm 넘음': 'warn' };
-  $('rows').innerHTML = final.map(f => { const r = rep[f.figure] || {};
-    return `<tr><td>그림 ${esc(f.figure)}</td><td><span class="pill ${cls[f.same] ?? ''}">${esc(f.same || '-')}</span></td><td>${f.fig_page ?? '-'}</td><td>${f.cite_page ?? '-'}</td><td>${r.shift ? (r.shift > 0 ? '+' : '') + r.shift + '블록' : '-'}</td><td>${esc(r.size || '원래 크기')}</td><td>${f.gap_before_mm != null ? (f.gap_before_mm > 40 ? `<span class="pill warn" title="앞쪽 아래가 크게 비었습니다. S-04 수동 배치에서 조정">${f.gap_before_mm}mm</span>` : f.gap_before_mm + 'mm') : '-'}</td></tr>`; }).join('');
+  const cls = { '같은 쪽': 'ok', '같은 펼침면': '', '떨어짐': 'bad', '인용 없음': 'warn', '빈칸 40mm 넘음': 'warn', '고정': '' };
+  const sc = no => (lastState?.sizeCls || {})[no] || '';
+  const SZ = { '': '원래 크기', fs1: '95mm', fs2: '78mm' };
+  $('rows').innerHTML = final.map(f => { const r = rep[f.figure] || {}, pin = pins[f.figure];
+    return `<tr><td>그림 ${esc(f.figure)}${pin ? ' <span class="pill">고정</span>' : ''}</td><td><span class="pill ${cls[f.same] ?? ''}">${esc(f.same || '-')}</span></td><td>${f.fig_page ?? '-'}</td><td>${f.cite_page ?? '-'}</td><td>${pin ? '편집자' : r.shift ? (r.shift > 0 ? '+' : '') + r.shift + '블록' : '-'}</td><td>${esc(SZ[sc(f.figure)])}</td><td>${f.gap_before_mm != null ? (f.gap_before_mm > 40 ? `<span class="pill warn" title="앞쪽 아래가 크게 비었습니다">${f.gap_before_mm}mm</span>` : f.gap_before_mm + 'mm') : '-'}</td>
+      <td><div class="row" style="gap:4px;flex-wrap:nowrap"><button type="button" class="btn ghost" data-mv="-1" data-no="${esc(f.figure)}" aria-label="그림 ${esc(f.figure)} 앞으로">▲</button><button type="button" class="btn ghost" data-mv="1" data-no="${esc(f.figure)}" aria-label="그림 ${esc(f.figure)} 뒤로">▼</button>
+      <select data-sz="${esc(f.figure)}" aria-label="그림 ${esc(f.figure)} 크기">${Object.entries(SZ).map(([k, v]) => `<option value="${k}" ${sc(f.figure) === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      <label class="note"><input type="checkbox" data-pin="${esc(f.figure)}" ${pin ? 'checked' : ''}> 고정</label></div></td></tr>`; }).join('');
   const big = final.filter(f => f.gap_before_mm > 40).length; if (big) sum['빈칸 40mm 넘음'] = big;
+  const np = Object.keys(pins).length; if (np) sum['고정'] = np;
   $('sum').innerHTML = Object.entries(sum).map(([k, v]) => `<span class="pill ${cls[k] ?? ''}">${esc(k)} ${v}</span>`).join('');
   return sum;
 }
+const baseState = () => ({ order: Object.fromEntries(pkgRow.package.chapters.map(c => [c.id, c.blocks.map((_, i) => i)])), sizeCls: {} });
+const chapterOf = no => pkgRow.package.chapters.find(c => c.blocks.some(b => b.fig === no));
+async function rerender(note) {
+  running = true; $('rmsg').textContent = '다시 쪽을 나누는 중…';
+  try {
+    const m = await LayoutEngine.render(LayoutEngine.buildHtml(pkgRow.package, opts(), lastState), $('fr'));
+    showRows(LayoutEngine.evaluate(pkgRow.package, m)); $('print').disabled = false;
+    $('rmsg').textContent = `${m.pages}쪽` + (note ? ' · ' + note : '');
+  } catch (err) { $('rmsg').textContent = '쪽 나누기 실패: ' + err.message; }
+  running = false;
+}
+function markPinned(no) { pins[no] = LayoutEngine.pinOf(lastState, chapterOf(no), no); pinsDirty = true; $('savePins').disabled = false; }
+document.addEventListener('click', async e => {
+  const mv = e.target.closest('[data-mv]'); if (!mv || running || !pkgRow) return;
+  const no = mv.dataset.no; if (!lastState) lastState = baseState();
+  const r = LayoutEngine.nudge(lastState, chapterOf(no), no, +mv.dataset.mv); lastState = r.st; markPinned(no);
+  await rerender(`그림 ${no}을 ${+mv.dataset.mv < 0 ? '앞으로' : '뒤로'} 한 블록 옮겼습니다` + (r.crossed ? ` (제목(${r.crossed})을 넘었습니다. 다른 절로 들어가지 않았는지 확인하세요)` : ''));
+});
+document.addEventListener('change', async e => {
+  const sz = e.target.closest('[data-sz]');
+  if (sz && pkgRow && !running) { const no = sz.dataset.sz; if (!lastState) lastState = baseState(); lastState = { ...lastState, sizeCls: { ...lastState.sizeCls } };
+    if (sz.value) lastState.sizeCls[no] = sz.value; else delete lastState.sizeCls[no]; markPinned(no); await rerender(`그림 ${no} 크기를 바꿨습니다`); return; }
+  const pn = e.target.closest('[data-pin]');
+  if (pn && pkgRow) { const no = pn.dataset.pin; if (pn.checked) { if (!lastState) lastState = baseState(); markPinned(no); } else { delete pins[no]; pinsDirty = true; $('savePins').disabled = false; }
+    $('pmsg2').textContent = `고정한 그림 ${Object.keys(pins).length}개 (저장 전)`; }
+});
+$('savePins').onclick = async () => {
+  const row = { book_id: cur, template: $('tpl').value, size: $('size').value, theme: $('theme').value, memo: $('tpl').value === '학습서' ? 'outer' : 'none', pins, pins_package_version: pkgRow.version, updated_by: uid, updated_at: new Date().toISOString() };
+  const { error } = await sb.from('book_layouts').upsert(row);
+  $('pmsg2').textContent = error ? '저장 실패: ' + error.message : `수동 배치를 저장했습니다: 고정 그림 ${Object.keys(pins).length}개 (패키지 v${pkgRow.version} 기준)`;
+  if (!error) { pinsDirty = false; $('savePins').disabled = true; }
+};
+$('clearPins').onclick = () => { pins = {}; pinsDirty = true; $('savePins').disabled = false; $('pmsg2').textContent = '고정을 모두 풀었습니다 (저장 전). 다음 자동 계산은 모든 그림을 다시 찾습니다.'; $('rows').querySelectorAll('[data-pin]').forEach(c => c.checked = false); };
 $('run').onclick = async () => {
   if (running) return; running = true; ['run', 'prev', 'save'].forEach(id => $(id).disabled = true);
   const pkg = pkgRow.package, nfig = pkg.chapters.reduce((s, c) => s + c.blocks.filter(b => b.fig).length, 0), t0 = Date.now(); const done = new Set();
   try {
-    const r = await LayoutEngine.optimize(pkg, opts(), $('fr'), p => { done.add(p.figure); $('bar').style.width = Math.round(done.size / nfig * 100) + '%'; $('rmsg').textContent = `그림 ${p.figure} 배치 시험 중 · 쪽 나누기 ${p.trials}회 · ${Math.round((Date.now() - t0) / 1000)}초`; });
+    const r = await LayoutEngine.optimize(pkg, opts(), $('fr'), p => { done.add(p.figure); $('bar').style.width = Math.round(done.size / nfig * 100) + '%'; $('rmsg').textContent = `그림 ${p.figure} 배치 시험 중 · 쪽 나누기 ${p.trials}회 · ${Math.round((Date.now() - t0) / 1000)}초`; }, pins);
     const secs = Math.round((Date.now() - t0) / 1000); $('bar').style.width = '100%';
-    const sum = showRows(r.final, r.report); lastState = r.state;
+    lastState = r.state; const sum = showRows(r.final, r.report);
     $('rmsg').textContent = `완료: ${r.pages}쪽 · 쪽 나누기 ${r.trials}회 · ${secs}초. 실제 그림으로 미리보기를 만드는 중…`;
     await LayoutEngine.render(LayoutEngine.buildHtml(pkg, opts(), r.state), $('fr'));   // 측정은 빈 그림으로 했으니 실제 그림으로 다시 그림
     $('rmsg').textContent = `완료: ${r.pages}쪽 · 쪽 나누기 ${r.trials}회 · ${secs}초. 미리보기에 최종 배치가 나와 있습니다.`;
@@ -121,9 +165,10 @@ $('run').onclick = async () => {
 };
 $('prev').onclick = async () => {
   $('rmsg').textContent = '쪽 나누는 중…';
+  if (!lastState && Object.keys(pins).length) { lastState = baseState(); for (const [no, pin] of Object.entries(pins)) { const ch = chapterOf(no); if (!ch) continue; lastState.order[ch.id] = LayoutEngine.applyPin(lastState.order[ch.id], ch, no, pin); if (pin.size) lastState.sizeCls[no] = pin.size; } }
   try { const m = await LayoutEngine.render(LayoutEngine.buildHtml(pkgRow.package, opts(), lastState || {}), $('fr'));
     const final = pkgRow.package.chapters.flatMap(c => c.blocks.filter(b => b.fig).map(b => ({ figure: b.fig, ...LayoutEngine.scoreFig(b.fig, m)[1] })));
-    showRows(final, []); $('rmsg').textContent = `${m.pages}쪽 (${lastState ? '계산한 배치' : '기본 배치: 그림은 첫 인용 문단 뒤'})`; $('print').disabled = false;
+    showRows(final, []); $('rmsg').textContent = `${m.pages}쪽 (${lastState ? '계산·고정한 배치' : '기본 배치: 그림은 첫 인용 문단 뒤'})`; $('print').disabled = false;
   } catch (e) { $('rmsg').textContent = '미리보기 실패: ' + e.message; }
 };
 $('print').onclick = () => $('fr').contentWindow.print();
