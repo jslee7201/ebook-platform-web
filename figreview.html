@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>그림 원본 검수</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@700&display=swap">
+<link rel="stylesheet" href="app.css?v=5">
+<style>
+.lay{display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:20px}
+@media (max-width:820px){.lay{grid-template-columns:minmax(0,1fr)}}
+.figs{display:grid;gap:6px;max-height:640px;overflow:auto}
+.fig{display:flex;gap:8px;align-items:center;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 10px;cursor:pointer;color:inherit}
+.fig[aria-current="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.view{position:relative;overflow:auto;max-height:560px;border:1px solid var(--line);border-radius:8px;background:repeating-conic-gradient(var(--bg) 0 25%, var(--surface) 0 50%) 0 0/16px 16px}
+.view img{display:block;image-rendering:auto}
+.view.px img{image-rendering:pixelated}
+.zbadge{font-weight:600}
+.f{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:grid;gap:6px;cursor:pointer;background:var(--surface)}
+.f.sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.f .item{overflow-wrap:anywhere}
+</style>
+</head><body>
+<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="index.html">홈</a><a href="figures.html">그림 대장</a><a href="figreview.html" aria-current="page">그림 원본 검수</a><a href="notes.html">편집 지시문</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
+<main>
+  <div>
+    <h1>그림 원본 검수</h1>
+    <p class="muted" style="margin:0">AI 그림 판독은 축소 이미지에서 비슷한 글자를 틀립니다(파일럿: '과산화소체'를 '파산화소체'로 오판). 그래서 그림 오류를 <b>확정하거나 기각하려면</b>, 해당 부분을 <b>원본 해상도(100% 이상)로 확대해 확인한 기록</b>이 있어야 합니다. 기록은 확대 배율과 본 영역(원본 화소 좌표)으로 남습니다.</p>
+  </div>
+  <div class="row" role="tablist" id="books" aria-label="책 선택"></div>
+
+  <section class="card" aria-labelledby="u-h">
+    <div class="row" style="justify-content:space-between"><h2 id="u-h">원본 이미지</h2><span id="uinfo" class="note"></span></div>
+    <div class="row"><label class="note" for="up">원본 파일 올리기(여러 개 선택 가능 · 파일 이름으로 그림에 연결)</label><input type="file" id="up" accept="image/*" multiple></div>
+    <div id="umsg" class="msg" hidden></div>
+  </section>
+
+  <div class="lay">
+    <section class="card" aria-labelledby="l-h">
+      <h2 id="l-h">그림</h2>
+      <div id="sum" class="row"></div>
+      <div id="figs" class="figs"></div>
+    </section>
+    <section class="card" aria-labelledby="v-h">
+      <div class="row" style="justify-content:space-between"><h2 id="v-h">보기</h2><div id="imgs" class="row"></div></div>
+      <div class="row">
+        <span class="note">확대</span>
+        <button class="btn ghost" data-z="fit" type="button">맞춤</button><button class="btn ghost" data-z="0.5" type="button">50%</button><button class="btn ghost" data-z="1" type="button">100%</button><button class="btn ghost" data-z="2" type="button">200%</button><button class="btn ghost" data-z="3" type="button">300%</button>
+        <span id="zinfo" class="note"></span>
+      </div>
+      <div id="view" class="view"><p class="note" style="padding:12px">왼쪽에서 그림을 고르세요.</p></div>
+      <div class="row"><button id="rec" class="btn" type="button" disabled>지금 보이는 영역을 원본으로 확인함</button><span id="recmsg" class="note"></span></div>
+      <h3 style="margin:8px 0 0;font-size:15px">이 그림의 판독 항목 <span id="fn" class="pill"></span></h3>
+      <div id="finds" style="display:grid;gap:8px"></div>
+      <details><summary class="note">항목 추가</summary>
+        <form id="af" class="form" style="margin-top:8px">
+          <label for="ai">내용</label><input id="ai" required>
+          <label for="ac">분류</label><select id="ac"><option>레이블 오기</option><option>캡션 불일치</option><option>판독성</option><option>표기 통일</option><option>본문 연결</option><option>기타</option></select>
+          <label for="as">찾은 곳</label><select id="as"><option>사람</option><option>AI 판독</option></select>
+          <label for="apx">AI가 본 폭(px)</label><input id="apx" type="number" min="1" placeholder="AI 판독일 때, 판독에 쓴 이미지 폭">
+          <span></span><button class="btn">추가</button>
+        </form>
+      </details>
+    </section>
+  </div>
+</main>
+
+<dialog id="dd">
+  <form id="df" method="dialog" style="display:grid;gap:12px">
+    <h2 id="dt">판정</h2>
+    <p id="dq" class="note" style="margin:0"></p>
+    <label class="note" for="dn">판정 이유</label><textarea id="dn" style="min-height:80px" required></textarea>
+    <div id="dmsg" class="msg bad" hidden></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn ghost" value="cancel" formnovalidate>닫기</button><button class="btn" value="save">저장</button></div>
+  </form>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="config.js?v=2"></script>
+<script>
+const $ = id => document.getElementById(id);
+const ST = { '확인 필요': 'warn', '오류 확정': 'bad', '문제 없음(오판)': 'ok', '수정 완료': 'ok', '저자 결정': '' };
+const NEED_ZOOM = ['오류 확정', '문제 없음(오판)'];
+let books = [], cur = null, figs = [], imgs = [], finds = [], checks = [], fig = null, img = null, find = null, zoom = 1, fitMode = true, uid = null, deciding = null;
+const fmt = t => t ? new Date(t).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+
+async function loadBooks() {
+  const { data } = await sb.from('books').select('id,title').order('title');
+  books = data || []; if (!cur) cur = (books.find(b => b.title === '사람해부학') || books[0])?.id;
+  $('books').innerHTML = books.map(b => `<button role="tab" class="btn ${b.id === cur ? '' : 'ghost'}" aria-selected="${b.id === cur}" data-book="${b.id}">${esc(b.title)}</button>`).join('');
+}
+async function loadAll() {
+  const { data: f } = await sb.from('figures').select('id,no,caption,source_files').eq('book_id', cur);
+  figs = (f || []).sort((a, b) => a.no.localeCompare(b.no, 'ko', { numeric: true }));
+  const ids = figs.map(x => x.id);
+  const [a, b, c] = await Promise.all([
+    sb.from('figure_images').select('*').in('figure_id', ids),
+    sb.from('figure_findings').select('*').in('figure_id', ids).order('id'),
+    sb.from('figure_zoom_checks').select('*').in('figure_id', ids).order('checked_at', { ascending: false })]);
+  imgs = a.data || []; finds = b.data || []; checks = c.data || [];
+  if (!fig || !figs.find(x => x.id === fig.id)) fig = figs.find(x => finds.some(y => y.figure_id === x.id && y.status === '확인 필요')) || figs[0];
+  renderList(); await showFig();
+}
+function renderList() {
+  const c = s => finds.filter(f => f.status === s).length;
+  $('sum').innerHTML = Object.keys(ST).map(s => `<span class="pill ${ST[s]}">${s} ${c(s)}</span>`).join('');
+  const want = figs.reduce((n, f) => n + (f.source_files || []).length, 0), have = imgs.filter(i => i.variant === '원본').length;
+  $('uinfo').textContent = `원본 ${have} / ${want}개 올라옴`;
+  $('figs').innerHTML = figs.map(f => { const fs = finds.filter(x => x.figure_id === f.id), open = fs.filter(x => x.status === '확인 필요').length, hasImg = imgs.some(i => i.figure_id === f.id);
+    return `<button type="button" class="fig" data-fig="${f.id}" aria-current="${f.id === fig?.id}"><b style="min-width:4.5em">그림 ${esc(f.no)}</b><span class="note" style="flex:1">${hasImg ? '' : '원본 없음 · '}항목 ${fs.length}</span>${open ? `<span class="pill warn">${open}</span>` : ''}</button>`; }).join('');
+}
+async function showFig() {
+  const list = imgs.filter(i => i.figure_id === fig?.id && i.variant === '원본').sort((a, b) => a.filename.localeCompare(b.filename, 'en', { numeric: true }));
+  if (!img || img.figure_id !== fig?.id) img = list[0] || null;
+  $('imgs').innerHTML = list.length > 1 ? list.map(i => `<button type="button" class="btn ${i.id === img?.id ? '' : 'ghost'}" data-img="${i.id}">${esc(i.filename.replace(/\.\w+$/, ''))}</button>`).join('') : '';
+  if (!img) { $('view').innerHTML = `<p class="note" style="padding:12px">그림 ${esc(fig?.no || '')}의 원본이 아직 없습니다. 위에서 ${esc((fig?.source_files || []).join(', ') || '원본 파일')}을 올려 주세요.</p>`; $('zinfo').textContent = ''; updRec(); renderFinds(); return; }
+  const { data, error } = await sb.storage.from('figure-images').createSignedUrl(img.storage_path, 900);
+  if (error) { $('view').innerHTML = `<p class="msg bad">${esc(error.message)}</p>`; return; }
+  $('view').innerHTML = `<img id="im" alt="그림 ${esc(fig.no)} 원본 (${img.natural_w}×${img.natural_h})" src="${data.signedUrl}">`;
+  $('im').onload = () => { if ($('im').naturalWidth !== img.natural_w) $('recmsg').textContent = '경고: 불러온 이미지 크기가 기록된 원본 크기와 다릅니다.'; applyZoom(); };
+  renderFinds();
+}
+function applyZoom() {
+  const im = $('im'); if (!im) return;
+  if (fitMode) zoom = Math.min(1, ($('view').clientWidth - 2) / img.natural_w);
+  im.style.width = Math.round(img.natural_w * zoom) + 'px';
+  $('view').classList.toggle('px', zoom >= 2);
+  const ok = zoom >= 1;
+  $('zinfo').innerHTML = `원본 ${img.natural_w}×${img.natural_h}px · <span class="zbadge" style="color:var(--${ok ? 'ok' : 'warn'})">원본 대비 ${Math.round(zoom * 100)}%${ok ? ' (원본 해상도 이상)' : ' (축소 보기)'}</span>`;
+  updRec();
+}
+function region() {
+  const v = $('view'); return { x: Math.round(v.scrollLeft / zoom), y: Math.round(v.scrollTop / zoom), w: Math.round(Math.min(v.clientWidth / zoom, img.natural_w)), h: Math.round(Math.min(v.clientHeight / zoom, img.natural_h)) };
+}
+function updRec() {
+  const ok = img && zoom >= 1 && find;
+  $('rec').disabled = !ok;
+  $('rec').title = !find ? '판독 항목을 먼저 고르세요' : !img ? '원본이 없습니다' : zoom < 1 ? '100% 이상으로 확대하세요' : '';
+  if (!find) $('recmsg').textContent = '아래 판독 항목을 고른 뒤, 100% 이상으로 확대해 해당 부분을 보고 누르세요.';
+  else if (zoom < 1) $('recmsg').textContent = '지금은 축소 보기입니다. 100% 이상으로 확대해야 기록할 수 있습니다.';
+  else $('recmsg').textContent = '';
+}
+function renderFinds() {
+  const fs = finds.filter(x => x.figure_id === fig?.id); $('fn').textContent = fs.length;
+  $('finds').innerHTML = fs.map(f => { const ck = checks.filter(c => c.finding_id === f.id);
+    const aiw = f.ai_view_px && img ? ` · AI가 본 폭 ${f.ai_view_px}px (원본의 ${Math.round(f.ai_view_px / img.natural_w * 100)}%)` : '';
+    return `<div class="f ${f.id === find?.id ? 'sel' : ''}" data-find="${f.id}" tabindex="0" role="button" aria-pressed="${f.id === find?.id}">
+      <div class="row"><span class="pill ${ST[f.status]}">${esc(f.status)}</span><span class="pill">${esc(f.category)}</span><span class="note">${esc(f.source)}${aiw}</span></div>
+      <div class="item">${esc(f.item)}</div>
+      ${f.verdict_note ? `<div class="note"><b>판정:</b> ${esc(f.verdict_note)} ${fmt(f.reviewed_at)}</div>` : ''}
+      ${ck.length ? `<div class="note">원본 확인 ${ck.length}회 · 최근 ${Math.round(ck[0].zoom * 100)}% · 영역 x${ck[0].region.x} y${ck[0].region.y} ${ck[0].region.w}×${ck[0].region.h} · ${fmt(ck[0].checked_at)}</div>` : ''}
+      <div class="row">${['오류 확정', '문제 없음(오판)', '수정 완료', '저자 결정'].filter(s => s !== f.status).map(s => `<button type="button" class="btn ghost" data-dec="${s}" data-id="${f.id}">${s}</button>`).join('')}</div>
+    </div>`; }).join('') || '<p class="note">판독 항목이 없습니다.</p>';
+}
+// 올리기
+$('up').onchange = async e => {
+  const files = [...e.target.files]; const m = $('umsg'); m.hidden = false; m.className = 'msg'; let ok = 0; const miss = [];
+  for (const [i, f] of files.entries()) {
+    m.textContent = `올리는 중 ${i + 1}/${files.length}: ${f.name}`;
+    const target = figs.find(x => (x.source_files || []).includes(f.name));
+    if (!target) { miss.push(f.name); continue; }
+    const bmp = await createImageBitmap(f); const w = bmp.width, h = bmp.height; bmp.close();
+    const safe = `${cur}/${target.id}/orig/${f.name.replace(/[^\w.-]/g, '_')}`;
+    const r = await sb.storage.from('figure-images').upload(safe, f, { upsert: true, contentType: f.type || 'image/png' });
+    if (r.error) { miss.push(f.name + '(' + r.error.message + ')'); continue; }
+    const r2 = await sb.from('figure_images').upsert({ figure_id: target.id, filename: f.name, variant: '원본', storage_path: safe, natural_w: w, natural_h: h, bytes: f.size, uploaded_by: uid, uploaded_at: new Date().toISOString() }, { onConflict: 'figure_id,filename,variant' });
+    if (r2.error) { miss.push(f.name + '(' + r2.error.message + ')'); continue; }
+    ok++;
+  }
+  m.className = miss.length ? 'msg bad' : 'msg';
+  m.textContent = `원본 ${ok}개를 올렸습니다.` + (miss.length ? ` 연결하지 못한 파일: ${miss.join(', ')}` : '');
+  e.target.value = ''; await loadAll(); $('umsg').hidden = false;
+};
+// 원본 확인 기록
+$('rec').onclick = async () => {
+  if (!find || !img || zoom < 1) return;
+  const row = { figure_id: fig.id, image_id: img.id, finding_id: find.id, region: region(), zoom: +zoom.toFixed(3), screen_px: $('view').clientWidth, checked_by: uid };
+  const { error } = await sb.from('figure_zoom_checks').insert(row);
+  $('recmsg').textContent = error ? '기록하지 못했습니다: ' + error.message : `기록했습니다: ${Math.round(zoom * 100)}% · 영역 x${row.region.x} y${row.region.y} ${row.region.w}×${row.region.h}px. 이제 판정할 수 있습니다.`;
+  const { data } = await sb.from('figure_zoom_checks').select('*').in('figure_id', figs.map(x => x.id)).order('checked_at', { ascending: false }); checks = data || []; renderFinds();
+};
+// 판정
+$('df').addEventListener('submit', async e => {
+  if (e.submitter?.value !== 'save') return; e.preventDefault();
+  const { error } = await sb.from('figure_findings').update({ status: deciding.status, verdict_note: $('dn').value.trim() }).eq('id', deciding.id);
+  if (error) { $('dmsg').hidden = false; $('dmsg').textContent = error.message; return; }
+  $('dd').close(); await loadAll();
+});
+$('af').onsubmit = async e => {
+  e.preventDefault(); if (!fig) return;
+  const { error } = await sb.from('figure_findings').insert({ figure_id: fig.id, item: $('ai').value.trim(), category: $('ac').value, source: $('as').value, ai_view_px: $('apx').value ? +$('apx').value : null });
+  if (error) { alert(error.message); return; } $('ai').value = $('apx').value = ''; await loadAll();
+};
+document.addEventListener('click', async e => {
+  const t = e.target;
+  const bk = t.closest('[data-book]'); if (bk) { cur = bk.dataset.book; fig = img = find = null; await loadBooks(); await loadAll(); return; }
+  const fg = t.closest('[data-fig]'); if (fg) { fig = figs.find(x => x.id == fg.dataset.fig); img = find = null; fitMode = true; renderList(); await showFig(); return; }
+  const ig = t.closest('[data-img]'); if (ig) { img = imgs.find(x => x.id == ig.dataset.img); await showFig(); return; }
+  const z = t.closest('[data-z]'); if (z) { fitMode = z.dataset.z === 'fit'; if (!fitMode) zoom = +z.dataset.z; applyZoom(); return; }
+  const dc = t.closest('[data-dec]');
+  if (dc) { const f = finds.find(x => x.id == dc.dataset.id); deciding = { id: f.id, status: dc.dataset.dec };
+    $('dt').textContent = dc.dataset.dec; $('dq').textContent = f.item + (NEED_ZOOM.includes(dc.dataset.dec) ? ' — 원본 해상도 확인 기록이 필요합니다.' : ''); $('dn').value = ''; $('dmsg').hidden = true; $('dd').showModal(); return; }
+  const fd = t.closest('[data-find]'); if (fd) { find = finds.find(x => x.id == fd.dataset.find); renderFinds(); updRec(); }
+});
+addEventListener('resize', () => { if (fitMode) applyZoom(); });
+requireMember(async s => { uid = s.user.id; await loadBooks(); await loadAll(); });
+</script>
+</body></html>
