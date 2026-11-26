@@ -84,7 +84,7 @@
     if (/[A-Za-z]\s?-$/.test(a) && /^[a-z]/.test(b)) return { t: a.replace(/\s?-$/, '') + b, flag: 'hyphen-joined' };
     if (fullLine && /[가-힣]$/.test(a) && /^[가-힣]/.test(b)) {
       // 조사·어미로 끝난 줄은 낱말이 끝난 것으로 보고 띄운다
-      if (/[을를의이가는은에도와과고며서면게로지적들께]$/.test(a)) return { t: a + ' ' + b, flag: null };
+      if (/[을를의이가는은에도와과고며서면게로지적들께여]$/.test(a)) return { t: a + ' ' + b, flag: null };
       return { t: a + b, flag: '줄끝 붙임(띄어쓰기 확인)' };
     }
     return { t: a + ' ' + b, flag: null };
