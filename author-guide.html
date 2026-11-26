@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>저자 원고 작성 가이드</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@700&display=swap">
+<link rel="stylesheet" href="app.css?v=5">
+<style>
+main{max-width:860px}
+.g h2{margin-top:6px}
+.g ol,.g ul{margin:0;padding-left:1.3em;display:grid;gap:6px}
+.ex{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.ex>div{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--bg)}
+.ex b.ok{color:var(--ok)}.ex b.no{color:var(--bad)}
+.ck li{list-style:none;margin-left:-1.3em}
+.ck input{margin-right:.5em}
+code{background:var(--accent-soft);padding:0 4px;border-radius:4px}
+@media print{header.top,#printBtn{display:none}.card{break-inside:avoid;border:0;padding:0}}
+</style>
+</head><body>
+<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="author-guide.html" aria-current="page">저자 원고 작성 가이드</a></nav><span class="sp"></span><button id="printBtn" class="btn ghost" type="button" onclick="print()">인쇄·PDF</button></header>
+<main class="g">
+  <div>
+    <h1>저자 원고 작성 가이드</h1>
+    <p class="muted" style="margin:0">한글(HWPX)로 원고를 쓰실 때 아래 몇 가지만 지켜 주시면, 출판사 시스템이 원고 구조(제목·그림·표·상자)를 <b>추측하지 않고 정확히</b> 읽어 들여 교정·조판·전자책 제작이 빨라지고 실수가 줄어듭니다. 실제 원고 시범 작업에서 확인된 내용으로 만들었습니다.</p>
+  </div>
+
+  <section class="card"><h2>1. 제목은 '개요' 스타일로</h2>
+    <p style="margin:0">제목을 굵은 글씨나 표 상자로 꾸미기만 하면, 시스템은 모양과 순서로 제목 단계를 <b>추정</b>해야 하고 사람이 하나하나 확인해야 합니다(시범 원고에서 13곳). 한글의 <b>서식 → 스타일</b>에서 제목 문단에 아래 스타일을 지정해 주세요. 모양은 마음대로 꾸미셔도 됩니다.</p>
+    <div class="tbl"><table><thead><tr><th>단계</th><th>스타일</th><th>예</th></tr></thead><tbody>
+      <tr><td>절</td><td><code>개요 1</code></td><td>2.1 세포의 구조와 기능 Cell Structure</td></tr>
+      <tr><td>중제목</td><td><code>개요 2</code></td><td>세포막 Cell Membrane</td></tr>
+      <tr><td>소제목</td><td><code>개요 3</code></td><td>1) 막단백질 Membrane Protein</td></tr>
+      <tr><td>세부 제목</td><td><code>개요 4</code></td><td>운반단백질 Transport Protein</td></tr>
+    </tbody></table></div>
+    <p class="note" style="margin:0">한글 제목 뒤에 영문을 한 칸 띄어 쓰시면 영문 병기로 자동 인식됩니다.</p>
+  </section>
+
+  <section class="card"><h2>2. 편집자에게 하실 말씀은 원고 밖에</h2>
+    <p style="margin:0">본문이나 그림 설명 안에 "그림은 원본 사용", "B에 백혈구 표기" 같은 작업 메모를 적으시면 그대로 인쇄될 위험이 있습니다(시범 원고에서 3곳). 시스템이 찾아 빼내지만, 짧은 메모는 놓칠 수 있습니다.</p>
+    <div class="ex">
+      <div><b class="no">피해 주세요</b><br>그림 2.2 세포의 여러 가지 모양. A. 편평세포 … <u>지시선과 텍스트는 직접 편집해 주세요</u></div>
+      <div><b class="ok">이렇게</b><br>한글의 <b>메모</b> 기능(입력 → 메모)을 쓰시거나, 별도 파일 「편집 요청.hwpx」에 그림 번호와 함께 적어 주세요.</div>
+    </div>
+  </section>
+
+  <section class="card"><h2>3. 그림</h2>
+    <ul>
+      <li>그림 설명은 그림 바로 아래에 <code>그림 2.3</code>처럼 <b>장.번호</b>로 시작해 주세요. 본문에서도 같은 번호로 인용해 주세요(인용이 없으면 그림을 어디에 둘지 정할 수 없습니다).</li>
+      <li><b>원본 이미지 파일</b>(가능하면 가로 1,500px 이상 또는 300dpi)을 함께 보내 주세요. 축소한 그림은 글자를 잘못 읽기 쉽습니다(시범: '과산화소체'를 '파산화소체'로 오판).</li>
+      <li>그림 속 글자(레이블)는 가능하면 이미지에 박지 말고 따로 적어 주시거나, 편집 가능한 원본(AI·PSD·PPT)을 보내 주세요.</li>
+      <li>다른 책·논문·인터넷에서 가져온 그림은 <b>출처</b>를, 사람이 나오는 사진은 <b>당사자 동의 여부</b>를 그림마다 적어 주세요. 확인되지 않은 그림은 해당 산출물(전자책·웹 등) 배포가 막힙니다.</li>
+    </ul>
+  </section>
+
+  <section class="card"><h2>4. 표와 상자</h2>
+    <ul>
+      <li>표는 한글의 표 기능으로 만들고, 표 위에 <code>표 2.1 제목</code>을 적어 주세요. 칸을 띄어쓰기·탭으로 맞추지 마세요.</li>
+      <li>셀 병합은 꼭 필요한 곳에만 써 주세요. 병합이 많으면 전자책에서 표가 깨지기 쉽습니다.</li>
+      <li>"핵심 요약", "더 알아보기" 같은 상자는 <b>1칸짜리 표</b> 하나로 만들고 첫 줄에 상자 이름을 적어 주세요.</li>
+    </ul>
+  </section>
+
+  <section class="card"><h2>5. 용어·참고문헌</h2>
+    <ul>
+      <li>의학용어는 대한의사협회 의학용어집의 한글 용어를 기준으로, 처음 나올 때만 <code>세포막(cell membrane)</code>처럼 영문을 병기해 주세요.</li>
+      <li>참고문헌은 원고 끝 <code>참고 문헌</code> 제목 아래에 한 줄에 하나씩, 같은 형식으로 적어 주세요. 본문 인용 번호와 순서가 맞아야 합니다.</li>
+      <li>약어는 처음 쓸 때 풀이를 함께 적어 주세요.</li>
+    </ul>
+  </section>
+
+  <section class="card"><h2>보내기 전 점검표</h2>
+    <ul class="ck">
+      <li><label><input type="checkbox"> 제목에 '개요 1~4' 스타일을 지정했다</label></li>
+      <li><label><input type="checkbox"> 본문·그림 설명 안에 편집자용 메모가 없다 (메모 기능이나 별도 파일로)</label></li>
+      <li><label><input type="checkbox"> 그림마다 <code>그림 N.M</code> 설명이 있고, 본문에서 인용했다</label></li>
+      <li><label><input type="checkbox"> 그림 원본 파일(고해상도)을 함께 보낸다</label></li>
+      <li><label><input type="checkbox"> 가져온 그림의 출처와 인물 사진 동의 여부를 적었다</label></li>
+      <li><label><input type="checkbox"> 표는 표 기능으로 만들고 <code>표 N.M</code> 제목을 달았다</label></li>
+      <li><label><input type="checkbox"> 참고문헌 형식과 본문 인용 번호가 맞는다</label></li>
+    </ul>
+    <p class="note" style="margin:0">이 가이드를 지키지 않으셔도 원고는 처리됩니다. 다만 시스템이 추정한 부분을 편집부가 확인하는 시간이 늘어납니다.</p>
+  </section>
+</main>
+</body></html>
