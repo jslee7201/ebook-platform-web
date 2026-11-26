@@ -19,7 +19,7 @@
 .tlist{display:flex;flex-wrap:wrap;gap:6px}
 </style>
 </head><body>
-<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="index.html">홈</a><a href="manuscripts.html">원고 입력</a><a href="tables.html" aria-current="page">표 편집기</a><a href="glossary.html">공용 용어집</a><a href="rights.html">권리 게이트</a><a href="figures.html">그림 대장</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
+<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="index.html">홈</a><a href="manuscripts.html">원고 입력</a><a href="tables.html" aria-current="page">표 편집기</a><a href="guides.html">스타일 가이드</a><a href="glossary.html">공용 용어집</a><a href="rights.html">권리 게이트</a><a href="figures.html">그림 대장</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
 <main>
   <div>
     <h1>표 편집기</h1>
@@ -146,7 +146,8 @@ async function loadTables() { const { data } = await sb.from('book_tables').sele
 async function openTable(id) {
   if (dirty && !confirm('저장하지 않은 수정이 있습니다. 다른 표를 열까요?')) return;
   const { data } = await sb.from('book_tables').select('*').eq('id', id).single(); T = data; G = clone(T.grid); hist = []; dirty = false; sel = [0, 0, 0, 0];
-  $('edcard').hidden = false; $('tt').textContent = `표 ${T.no}`; $('cap').value = T.caption || ''; $('hdr').value = String(T.header_rows); $('note').value = T.note || ''; $('status').value = T.status; $('save').disabled = true;
+  $('edcard').hidden = false; $('tt').textContent = `표 ${T.no}`;
+  sb.from('books').select('style_guide_id, style_guides!books_style_guide_id_fkey(version)').eq('id', T.book_id).single().then(({ data: bk }) => { $('tt').innerHTML = `표 ${esc(T.no)} ` + (bk?.style_guide_id ? `<span class="pill ok">기준 가이드 ${esc(bk.style_guides?.version || '')}</span>` : '<span class="pill bad">잠긴 스타일 가이드 없음 · 저장 불가</span> <a class="note" href="guides.html">가이드 잠그기</a>'); }); $('cap').value = T.caption || ''; $('hdr').value = String(T.header_rows); $('note').value = T.note || ''; $('status').value = T.status; $('save').disabled = true;
   render(); loadTables();
 }
 async function save() {

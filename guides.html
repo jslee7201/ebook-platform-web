@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>스타일 가이드</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@700&display=swap">
+<link rel="stylesheet" href="app.css?v=5">
+<style>
+.md h1{font-size:20px}.md h2{font-size:16px}.md p,.md li{margin:.3em 0}.md blockquote{margin:.5em 0;padding:.4em .8em;border-left:3px solid var(--line);color:var(--muted)}
+.vers{display:flex;flex-wrap:wrap;gap:6px}
+.viol{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.viol li{border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.viol mark{background:var(--warn-soft);color:var(--warn);padding:0 2px;border-radius:3px}
+</style>
+</head><body>
+<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="index.html">홈</a><a href="manuscripts.html">원고 입력</a><a href="tables.html">표 편집기</a><a href="guides.html" aria-current="page">스타일 가이드</a><a href="glossary.html">공용 용어집</a><a href="rights.html">권리 게이트</a><a href="figures.html">그림 대장</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
+<main>
+  <div>
+    <h1>스타일 가이드</h1>
+    <p class="muted" style="margin:0">번역·교정을 시작하기 전에 가이드를 <b>잠그고</b> 책에 연결합니다. 잠긴 가이드는 고칠 수 없고, 바꾸려면 새 버전을 만듭니다. 책에 잠긴 가이드가 없으면 표 편집·변환 확인 같은 작업이 막히고, 저장된 작업마다 어느 버전 기준이었는지 기록됩니다.</p>
+  </div>
+  <div class="row" id="books"></div>
+
+  <section class="card" aria-labelledby="a-h">
+    <h2 id="a-h">이 책의 기준 가이드</h2>
+    <div id="active" class="row"></div>
+    <div id="usage" class="note"></div>
+  </section>
+
+  <section class="card" aria-labelledby="v-h">
+    <div class="row" style="justify-content:space-between"><h2 id="v-h">버전</h2><button class="btn ghost" id="newv">새 버전 만들기</button></div>
+    <div class="vers" id="vers"></div>
+    <div id="detail" hidden style="display:grid;gap:12px">
+      <div class="row" id="dact"></div>
+      <div class="md card" id="content" style="background:var(--bg)"></div>
+      <div id="editbox" hidden style="display:grid;gap:8px">
+        <label class="note" for="ed_content">본문(마크다운)</label><textarea id="ed_content" style="min-height:260px"></textarea>
+        <label class="note" for="ed_rules">자동 검사 규칙(JSON)</label><textarea id="ed_rules" style="min-height:160px;font-family:monospace;font-size:12px"></textarea>
+        <div class="row"><button class="btn" id="saveDraft">초안 저장</button><button class="btn ghost" id="cancelEdit">취소</button></div>
+      </div>
+      <div><h2 style="font-size:15px">자동 검사 규칙</h2><ul id="rules" style="margin:0;padding-left:1.2em"></ul></div>
+      <div id="dmsg" class="msg" hidden></div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="c-h">
+    <h2 id="c-h">가이드 검사</h2>
+    <p class="note" style="margin:0">이 책의 기준 가이드 규칙으로 문장을 검사합니다. 문장을 붙여 넣거나, 변환한 원고를 고르세요.</p>
+    <textarea id="ctext" placeholder="예: 안면신경은 경유돌공을 지나요. 근육 길이는 65mm이며 15 %가 type 1이다."></textarea>
+    <div class="row"><button class="btn" id="check">검사</button><label class="note" for="cms">또는 변환한 원고</label><select id="cms"><option value="">고르기</option></select><span id="cres" class="muted"></span></div>
+    <ul class="viol" id="viol"></ul>
+  </section>
+
+  <section class="card" aria-labelledby="e-h">
+    <h2 id="e-h">잠금·연결 기록</h2>
+    <ul id="events" class="note" style="margin:0;padding-left:1.2em;display:grid;gap:4px"></ul>
+  </section>
+</main>
+
+<dialog id="dlg"><form id="rf" method="dialog" style="display:grid;gap:12px">
+  <h2 id="rt"></h2><p id="rd" class="note" style="margin:0"></p>
+  <label class="note" for="reason">이유</label><input id="reason" placeholder="예: 편집장 확정(11-27), 인용문 문체 결정 반영">
+  <div id="rmsg" class="msg bad" hidden></div>
+  <div class="row" style="justify-content:flex-end"><button class="btn ghost" value="cancel" formnovalidate>닫기</button><button class="btn" value="ok" id="rok">확인</button></div>
+</form></dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="config.js?v=2"></script>
+<script>
+const $ = id => document.getElementById(id);
+let books = [], cur = null, guides = [], bookGuide = null, selG = null, isAdmin = false, pending = null;
+const KIND = { ending: '종결 어미', unit_space: '숫자·단위', first_english: '영문 병기', quotes: '따옴표', sentence_length: '문장 길이', replace: '용어 바꾸기' };
+function dmsg(t, bad) { const m = $('dmsg'); m.hidden = false; m.textContent = t; m.className = 'msg' + (bad ? ' bad' : ''); }
+function md(s) { // 간단한 마크다운 → HTML (제목·굵게·목록·인용)
+  const lines = esc(s || '').split('\n'); let out = '', list = null;
+  const inl = t => t.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  for (const l of lines) {
+    const m = l.match(/^(\d+\.|-)\s+(.*)/);
+    if (m) { const tag = m[1] === '-' ? 'ul' : 'ol'; if (list !== tag) { if (list) out += `</${list}>`; out += `<${tag}>`; list = tag; } out += `<li>${inl(m[2])}</li>`; continue; }
+    if (list) { out += `</${list}>`; list = null; }
+    if (/^#\s/.test(l)) out += `<h1>${inl(l.slice(2))}</h1>`; else if (/^##\s/.test(l)) out += `<h2>${inl(l.slice(3))}</h2>`;
+    else if (/^&gt;\s?/.test(l)) out += `<blockquote>${inl(l.replace(/^&gt;\s?/, ''))}</blockquote>`; else if (l.trim()) out += `<p>${inl(l)}</p>`;
+  }
+  return out + (list ? `</${list}>` : '');
+}
+
+async function loadBooks() { const { data } = await sb.from('books').select('id,title,style_guide_id').order('title'); books = data || []; cur = cur || books[0]?.id;
+  $('books').innerHTML = books.map(b => `<button class="btn ${b.id === cur ? '' : 'ghost'}" data-book="${b.id}">${esc(b.title)} ${b.style_guide_id ? '<span class="pill ok">가이드 잠김</span>' : '<span class="pill bad">가이드 없음</span>'}</button>`).join(''); }
+async function loadGuides() {
+  const b = books.find(x => x.id === cur); bookGuide = b?.style_guide_id || null;
+  const { data } = await sb.from('style_guides').select('*').eq('book_id', cur).order('created_at'); guides = data || [];
+  const ag = guides.find(g => g.id === bookGuide);
+  $('active').innerHTML = ag ? `<span class="pill ok">${esc(ag.name)} ${esc(ag.version)}</span><span class="note">잠금 ${new Date(ag.locked_at).toLocaleDateString('ko-KR')}</span>` :
+    `<span class="pill bad">잠긴 가이드가 연결되지 않았습니다</span><span class="note">이 책은 표 편집·변환 확인을 저장할 수 없습니다. 초안을 잠그고 연결하세요.</span>`;
+  const [t, m] = await Promise.all([sb.from('book_tables').select('style_guide_id').eq('book_id', cur), sb.from('manuscripts').select('style_guide_id').eq('book_id', cur)]);
+  const cnt = {}; [...(t.data || []), ...(m.data || [])].forEach(x => { const v = guides.find(g => g.id === x.style_guide_id)?.version || '기준 없음(가이드 전)'; cnt[v] = (cnt[v] || 0) + 1; });
+  $('usage').textContent = Object.keys(cnt).length ? '작업별 기준 버전: ' + Object.entries(cnt).map(([v, n]) => `${v} ${n}건`).join(' · ') : '';
+  $('vers').innerHTML = guides.map(g => `<button class="btn ${selG && selG.id === g.id ? '' : 'ghost'}" data-g="${g.id}">${esc(g.version)} <span class="pill ${g.status === '잠금' ? 'ok' : g.status === '폐기' ? 'bad' : 'warn'}">${esc(g.status)}</span>${g.id === bookGuide ? ' <span class="pill">기준</span>' : ''}</button>`).join('') || '<span class="note">가이드가 없습니다. 새 버전을 만드세요.</span>';
+  if (selG) showGuide(guides.find(g => g.id === selG.id)); else if (guides.length) showGuide(guides.find(g => g.id === bookGuide) || guides[guides.length - 1]);
+  loadEvents(); loadMs();
+}
+function showGuide(g) {
+  selG = g; if (!g) return; $('detail').hidden = false; $('editbox').hidden = true; $('content').hidden = false; $('dmsg').hidden = true;
+  $('content').innerHTML = md(g.content);
+  $('rules').innerHTML = (g.rules || []).map(r => `<li><b>${esc(KIND[r.kind] || r.kind)}</b> · ${esc(r.label)} <span class="pill ${r.severity === 'warn' ? 'warn' : ''}">${r.severity === 'warn' ? '경고' : '참고'}</span></li>`).join('') || '<li class="note">규칙 없음</li>';
+  const acts = [];
+  if (g.status === '초안') { acts.push('<button class="btn ghost" id="edit">고치기</button>'); if (isAdmin) acts.push('<button class="btn" id="lock">잠그기</button>'); }
+  if (g.status === '잠금' && g.id !== bookGuide && isAdmin) acts.push('<button class="btn" id="link">이 책의 기준으로 연결</button>');
+  if (g.status === '잠금' && g.id !== bookGuide && isAdmin) acts.push('<button class="btn ghost" id="retire">폐기</button>');
+  $('dact').innerHTML = `<span class="pill">${esc(g.name)} ${esc(g.version)}</span>${g.status === '잠금' ? `<span class="note">잠금 ${new Date(g.locked_at).toLocaleString('ko-KR')} · 내용을 바꾸려면 새 버전을 만드세요</span>` : ''}` + acts.join('') + (!isAdmin && g.status === '초안' ? '<span class="note">잠그기는 관리자(편집장)만 할 수 있습니다.</span>' : '');
+  [...document.querySelectorAll('[data-g]')].forEach(b => b.className = 'btn ' + (+b.dataset.g === g.id ? '' : 'ghost'));
+}
+async function loadEvents() { const { data } = await sb.from('guide_events').select('*').eq('book_id', cur).order('changed_at', { ascending: false });
+  const A = { lock: '잠금', activate: '책에 연결', switch: '기준 교체', retire: '폐기' };
+  $('events').innerHTML = (data || []).map(e => `<li>${new Date(e.changed_at).toLocaleString('ko-KR')} · ${esc(guides.find(g => g.id === e.guide_id)?.version || '')} ${A[e.action] || e.action}${e.reason ? ' — ' + esc(e.reason) : ''}</li>`).join('') || '<li>기록이 없습니다.</li>'; }
+async function loadMs() { const { data } = await sb.from('manuscripts').select('id,filename,convert_status').eq('book_id', cur).neq('convert_status', '변환 전');
+  $('cms').innerHTML = '<option value="">고르기</option>' + (data || []).map(m => `<option value="${m.id}">${esc(m.filename)} (${esc(m.convert_status)})</option>`).join(''); }
+
+// 규칙 검사
+function runRules(text, rules) {
+  const out = [], sents = text.split(/(?<=[.!?。])\s+|\n+/).map(s => s.trim()).filter(Boolean);
+  const ctx = (s, a, b) => esc(s.slice(Math.max(0, a - 20), a)) + '<mark>' + esc(s.slice(a, b)) + '</mark>' + esc(s.slice(b, b + 20));
+  for (const r of rules) {
+    if (r.kind === 'ending') sents.forEach(s => { const m = s.match(/(요|니다|습니까|세요)[.!?]?["”’)]?$/); if (m) out.push({ r, html: ctx(s, s.length - m[0].length, s.length), fix: '평서체(~다)로' }); });
+    if (r.kind === 'unit_space') { const u = (r.units || []).map(x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      for (const m of text.matchAll(new RegExp(`(\\d)(${u})(?![A-Za-z])`, 'g'))) out.push({ r, html: ctx(text, m.index, m.index + m[0].length), fix: `${m[1]} ${m[2]}` });
+      for (const m of text.matchAll(/(\d)\s+%/g)) out.push({ r, html: ctx(text, m.index, m.index + m[0].length), fix: `${m[1]}%` }); }
+    if (r.kind === 'first_english') { const seen = {}; for (const m of text.matchAll(/([가-힣][가-힣 ]*)\(([A-Za-z][A-Za-z \-]{2,})\)/g)) { const k = m[2].toLowerCase().trim(); seen[k] = (seen[k] || 0) + 1; if (seen[k] > 1) out.push({ r, html: ctx(text, m.index, m.index + m[0].length), fix: `${m[1].trim()} (영문 빼기)` }); } }
+    if (r.kind === 'quotes') for (const m of text.matchAll(/["']/g)) out.push({ r, html: ctx(text, m.index, m.index + 1), fix: '“ ” 또는 ‘ ’' });
+    if (r.kind === 'sentence_length') sents.forEach(s => { if (s.length > (r.max || 200)) out.push({ r, html: esc(s.slice(0, 60)) + '…', fix: `${s.length}자 → 나누기 검토` }); });
+    if (r.kind === 'replace') (r.pairs || []).forEach(([a, b]) => { let i = -1; while ((i = text.indexOf(a, i + 1)) !== -1) out.push({ r, html: ctx(text, i, i + a.length), fix: b }); });
+  }
+  return out;
+}
+function showViol(v) {
+  $('cres').textContent = v.length ? `${v.length}곳` : '규칙에 어긋난 곳이 없습니다.';
+  $('viol').innerHTML = v.slice(0, 200).map(x => `<li><span class="pill ${x.r.severity === 'warn' ? 'warn' : ''}">${esc(KIND[x.r.kind])}</span> …${x.html}… <span class="note">→ ${esc(x.fix)}</span></li>`).join('');
+}
+function activeRules() { const g = guides.find(x => x.id === bookGuide); return g ? g.rules : null; }
+
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-book]'); if (b) { cur = b.dataset.book; selG = null; await loadBooks(); loadGuides(); return; }
+  const g = e.target.closest('[data-g]'); if (g) { showGuide(guides.find(x => x.id === +g.dataset.g)); return; }
+  if (e.target.id === 'edit') { $('editbox').hidden = false; $('content').hidden = true; $('ed_content').value = selG.content || ''; $('ed_rules').value = JSON.stringify(selG.rules, null, 1); }
+  if (e.target.id === 'cancelEdit') showGuide(selG);
+  if (e.target.id === 'saveDraft') { let rules; try { rules = JSON.parse($('ed_rules').value); } catch { return dmsg('규칙 JSON 형식이 맞지 않습니다.', true); }
+    const { error } = await sb.from('style_guides').update({ content: $('ed_content').value, rules }).eq('id', selG.id); if (error) return dmsg(error.message, true); dmsg('초안을 저장했습니다.'); await loadGuides(); }
+  if (e.target.id === 'lock') ask('가이드 잠그기', `${selG.version}을(를) 잠그면 내용을 더 고칠 수 없습니다. 이후 수정은 새 버전으로 합니다.`, async r => sb.rpc('lock_style_guide', { p_id: selG.id, p_reason: r || null }));
+  if (e.target.id === 'link') ask('이 책의 기준 가이드로 연결', bookGuide ? '작업 중에 기준을 바꾸면 이전 버전으로 한 작업과 문체가 달라질 수 있습니다. 이유를 꼭 적으세요.' : '이후 저장하는 작업은 이 버전 기준으로 기록됩니다.', async r => sb.rpc('set_book_guide', { p_book: cur, p_guide: selG.id, p_reason: r || null }));
+  if (e.target.id === 'retire') ask('가이드 폐기', '폐기한 버전은 다시 쓸 수 없습니다.', async r => { const x = await sb.from('style_guides').update({ status: '폐기' }).eq('id', selG.id); if (!x.error) await sb.from('guide_events').insert({ book_id: cur, guide_id: selG.id, action: 'retire', reason: r || null }).then(() => {}, () => {}); return x; });
+  if (e.target.id === 'newv') { const base = selG || guides[guides.length - 1]; const ver = prompt('새 버전 이름', base ? base.version.replace(/(\d+)(?!.*\d)/, n => +n + 1) : 'v0.1'); if (!ver) return;
+    const { data, error } = await sb.from('style_guides').insert({ book_id: cur, name: base?.name || (books.find(x => x.id === cur).title + ' 스타일 가이드'), version: ver, content: base?.content || '', rules: base?.rules || [], based_on: base?.id || null }).select().single();
+    if (error) return alert(error.message); selG = data; await loadGuides(); }
+  if (e.target.id === 'check') { const rules = activeRules(); if (!rules) return $('cres').textContent = '이 책에 잠긴 기준 가이드가 없습니다.'; showViol(runRules($('ctext').value, rules)); }
+});
+$('cms').onchange = async () => { const id = $('cms').value; if (!id) return; const rules = activeRules(); if (!rules) return $('cres').textContent = '이 책에 잠긴 기준 가이드가 없습니다.';
+  const { data } = await sb.from('structured_blocks').select('text,type').eq('manuscript_id', id).in('type', ['para', 'list', 'heading', 'caption']).order('seq');
+  const text = (data || []).map(b => b.text).join('\n'); $('ctext').value = text.slice(0, 20000); showViol(runRules(text, rules)); };
+function ask(title, desc, fn) { $('rt').textContent = title; $('rd').textContent = desc; $('reason').value = ''; $('rmsg').hidden = true; pending = fn; $('dlg').showModal(); }
+$('rf').addEventListener('submit', async e => { if (e.submitter?.value !== 'ok') return; e.preventDefault();
+  const { error } = await pending($('reason').value.trim()); if (error) { $('rmsg').hidden = false; $('rmsg').textContent = error.message; return; }
+  $('dlg').close(); await loadBooks(); await loadGuides(); });
+requireMember(async (s, prof) => { isAdmin = prof.role === 'admin'; await loadBooks(); await loadGuides(); });
+</script>
+</body></html>
