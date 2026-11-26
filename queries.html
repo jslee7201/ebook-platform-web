@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>원서 의문점 감수</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@700&display=swap">
+<link rel="stylesheet" href="app.css?v=5">
+<style>
+.q{border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;gap:8px;background:var(--surface)}
+.q.flash{animation:flash 2s}
+.q h3{margin:0;font-size:15px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.q blockquote{margin:0;padding:8px 12px;border-left:3px solid var(--line);font-family:Georgia,serif;font-size:14px;color:var(--ink);background:var(--bg);border-radius:0 6px 6px 0;overflow-wrap:anywhere}
+.q .sug{font-family:Georgia,serif;font-size:14px;overflow-wrap:anywhere}
+.q .verdict{border-top:1px dashed var(--line);padding-top:8px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:12px}
+.rep{white-space:pre-wrap;font-family:Georgia,serif;font-size:14px;line-height:1.7;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;max-height:420px;overflow:auto}
+dialog{width:min(720px,94vw)}
+dialog textarea{min-height:70px}
+.hist{font-size:12px;color:var(--muted);margin:0;padding-left:18px}
+</style>
+</head><body>
+<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="index.html">홈</a><a href="manuscripts.html">원고 입력</a><a href="glossary.html">공용 용어집</a><a href="kma.html">KMA 대조</a><a href="rights.html">권리 게이트</a><a href="figures.html">그림 대장</a><a href="queries.html" aria-current="page">원서 의문점</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
+<main>
+  <div>
+    <h1>원서 의문점 감수</h1>
+    <p class="muted" style="margin:0">번역 중 AI와 편집자가 찾은 원서 자체의 의문점입니다. 감수자가 하나씩 <b>확인·기각·보류</b>로 판정하고, 확인된 항목만 한국어판 역주와 <b>원출판사 전달 목록</b>으로 묶습니다. 확인·기각에는 감수 의견이 꼭 필요하고, 전달한 항목은 관리자만 고칠 수 있습니다. <span id="live" class="pill">연결 중…</span></p>
+  </div>
+  <div class="row" role="tablist" id="books" aria-label="책 선택"></div>
+
+  <section class="card" aria-labelledby="s-h">
+    <h2 id="s-h">진행 상황</h2>
+    <div id="sum" class="row"></div>
+  </section>
+
+  <section class="card" aria-labelledby="l-h">
+    <div class="row" style="justify-content:space-between">
+      <h2 id="l-h">의문점 목록 <span id="n" class="pill"></span></h2>
+      <div class="row">
+        <label class="note" for="fs">상태</label><select id="fs"><option value="">전체</option><option>검토 대기</option><option>확인</option><option>기각</option><option>보류</option><option>전달</option></select>
+        <label class="note" for="fc">분류</label><select id="fc"><option value="">전체</option><option>내용 의문</option><option>내부 불일치</option><option>오기·오타</option><option>문장 결손</option><option>표기·서지</option><option>구성</option></select>
+      </div>
+    </div>
+    <div id="list" style="display:grid;gap:10px"></div>
+  </section>
+
+  <div class="grid2">
+    <section class="card" aria-labelledby="t-h">
+      <h2 id="t-h">한국어판 역주 목록 <span id="tn" class="pill"></span></h2>
+      <p class="note" style="margin:0">확인·전달된 항목 가운데 역주 문안이 있는 것입니다. 조판 때 해당 블록에 역주로 붙입니다.</p>
+      <div id="tl" class="rep"></div>
+    </section>
+    <section class="card" aria-labelledby="p-h">
+      <h2 id="p-h">원출판사 전달 목록 <span id="pn" class="pill"></span></h2>
+      <p class="note" style="margin:0">감수에서 <b>확인</b>된 항목의 영문 설명을 모은 미리보기입니다. 내려받아 권리 제안서와 함께 보내고, 보낸 뒤 <b>전달 처리</b>를 누르면 묶음 이름과 날짜가 기록됩니다.</p>
+      <div id="pwarn" class="msg bad" hidden></div>
+      <div id="pl" class="rep"></div>
+      <div class="row">
+        <button id="dl" class="btn ghost">목록 내려받기 (.md)</button>
+        <label class="note" for="batch">묶음 이름</label><input id="batch" placeholder="예: 1차 (2026-12)" style="width:12em">
+        <button id="send" class="btn">전달 처리</button>
+      </div>
+      <div id="pmsg" class="msg" hidden></div>
+      <div id="sent" class="note"></div>
+    </section>
+  </div>
+</main>
+
+<dialog id="dlg">
+  <form id="ff" method="dialog" style="display:grid;gap:12px">
+    <h2 id="dt">판정</h2>
+    <blockquote id="dex" style="margin:0;font-family:Georgia,serif;font-size:14px;overflow-wrap:anywhere"></blockquote>
+    <p id="diss" class="note" style="margin:0"></p>
+    <div class="form">
+      <label for="f_status">판정</label><select id="f_status"><option>검토 대기</option><option>확인</option><option>기각</option><option>보류</option></select>
+      <label for="f_verdict">감수 의견</label><textarea id="f_verdict" placeholder="확인·기각에는 꼭 적어 주세요. 근거 문헌이 있으면 함께."></textarea>
+      <label for="f_tn">역주 문안</label><textarea id="f_tn" placeholder="한국어판에 실을 역주 (없으면 비워 둠)"></textarea>
+      <label for="f_rep">영문 설명</label><textarea id="f_rep" placeholder="원출판사에 보낼 설명 (영문)"></textarea>
+    </div>
+    <div class="row"><button type="button" id="tpl" class="btn ghost">영문 설명 초안 채우기</button><span class="note">원문·제안 수정을 넣은 틀을 만듭니다. 이유는 감수자가 영어로 다듬어 주세요.</span></div>
+    <div id="dmsg" class="msg bad" hidden></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn ghost" value="cancel" formnovalidate>닫기</button><button class="btn" value="save">저장</button></div>
+  </form>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="config.js?v=2"></script>
+<script>
+const $ = id => document.getElementById(id);
+const ST = { '검토 대기': '', '확인': 'ok', '기각': 'bad', '보류': 'warn', '전달': 'ok' };
+let books = [], qs = [], logs = {}, cur = null, editing = null, isAdmin = false;
+const chEn = c => 'Chapter ' + parseInt(String(c).replace(/\D/g, ''), 10);
+const locEn = q => `${chEn(q.chapter)}, p. ${q.page ?? '?'}`;
+
+async function loadBooks() {
+  const { data } = await sb.from('books').select('id,title,work_type').order('title');
+  books = data || [];
+  if (!cur) cur = (books.find(b => b.work_type === '번역서') || books[0])?.id;
+  $('books').innerHTML = books.map(b => `<button role="tab" class="btn ${b.id === cur ? '' : 'ghost'}" aria-selected="${b.id === cur}" data-book="${b.id}">${esc(b.title)} <span class="pill">${esc(b.work_type)}</span></button>`).join('');
+}
+async function loadQs() {
+  const { data, error } = await sb.from('source_queries').select('*').eq('book_id', cur).order('code');
+  if (error) { $('list').innerHTML = `<div class="msg bad">${esc(error.message)}</div>`; return; }
+  qs = data; logs = {};
+  if (qs.length) {
+    const { data: lg } = await sb.from('source_query_log').select('query_id,action,changed_at,changed_by').in('query_id', qs.map(q => q.id)).order('changed_at');
+    (lg || []).forEach(l => (logs[l.query_id] ||= []).push(l));
+  }
+  render();
+}
+const fmt = t => t ? new Date(t).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+
+function render(flash) {
+  const cnt = s => qs.filter(q => q.status === s).length;
+  $('sum').innerHTML = Object.keys(ST).map(s => `<span class="pill ${ST[s]}">${s} ${cnt(s)}</span>`).join('') +
+    `<span class="note">전체 ${qs.length}건 · 판정 끝남 ${qs.length - cnt('검토 대기')}건</span>`;
+  const fs = $('fs').value, fc = $('fc').value;
+  const list = qs.filter(q => (!fs || q.status === fs) && (!fc || q.category === fc));
+  $('n').textContent = `${list.length} / ${qs.length}`;
+  $('list').innerHTML = list.length ? list.map(q => `<article class="q${q.id === flash ? ' flash' : ''}" aria-labelledby="h-${q.id}">
+    <h3 id="h-${q.id}"><span>${esc(q.code)}</span><span>${esc(q.location)}</span><span class="pill">${esc(q.category)}</span><span class="pill ${ST[q.status]}">${esc(q.status)}</span>${q.sent_batch ? `<span class="pill">전달: ${esc(q.sent_batch)}</span>` : ''}<span class="note">AI 확신 ${esc(q.ai_confidence || '-')}</span></h3>
+    <blockquote lang="en">${esc(q.source_excerpt)}</blockquote>
+    <div>${esc(q.issue_ko)}</div>
+    ${q.suggested_en ? `<div class="note">제안 수정: <span class="sug" lang="en">${esc(q.suggested_en)}</span></div>` : ''}
+    ${q.verdict_note || q.translator_note_ko ? `<div class="verdict">${q.verdict_note ? `<div><b>감수 의견</b> ${esc(q.verdict_note)} <span class="note">${fmt(q.reviewed_at)}</span></div>` : ''}${q.translator_note_ko ? `<div><b>역주</b> ${esc(q.translator_note_ko)}</div>` : ''}</div>` : ''}
+    <div class="row" style="justify-content:space-between">
+      <details><summary class="note">기록 ${(logs[q.id] || []).length}건</summary><ol class="hist">${(logs[q.id] || []).map(l => `<li>${fmt(l.changed_at)} · ${esc(l.action)}</li>`).join('')}</ol></details>
+      <button class="btn ghost" data-edit="${q.id}" ${q.status === '전달' && !isAdmin ? 'disabled title="전달한 항목은 관리자만 고칠 수 있습니다"' : ''}>판정하기</button>
+    </div></article>`).join('') : '<p class="note">조건에 맞는 항목이 없습니다.</p>';
+
+  const tn = qs.filter(q => ['확인', '전달'].includes(q.status) && q.translator_note_ko);
+  $('tn').textContent = tn.length;
+  $('tl').textContent = tn.length ? tn.map(q => `[${q.code}] ${q.location} (${q.block_id})\n역주: ${q.translator_note_ko}`).join('\n\n') : '아직 없습니다.';
+
+  const ok = qs.filter(q => q.status === '확인');
+  const miss = ok.filter(q => !(q.report_en || '').trim());
+  $('pn').textContent = ok.length;
+  $('pwarn').hidden = !miss.length;
+  $('pwarn').textContent = miss.length ? `영문 설명이 빈 항목이 있어 전달 처리할 수 없습니다: ${miss.map(q => q.code).join(', ')}` : '';
+  $('pl').textContent = ok.length ? report(ok) : '확인된 항목이 아직 없습니다. 감수자가 판정하면 여기에 모입니다.';
+  $('send').disabled = !ok.length || miss.length > 0;
+  $('dl').disabled = !ok.length;
+  const batches = {};
+  qs.filter(q => q.status === '전달').forEach(q => { (batches[q.sent_batch] ||= { n: 0, at: q.sent_at }).n++; });
+  $('sent').textContent = Object.keys(batches).length ? '이미 전달: ' + Object.entries(batches).map(([b, v]) => `${b} (${v.n}건, ${fmt(v.at)})`).join(' · ') : '';
+}
+function report(items) {
+  const b = books.find(x => x.id === cur);
+  return `# Queries on the source text\n\nKorean edition: ${b?.title || ''}\nPrepared during translation and confirmed by the Korean medical reviewer.\nItems: ${items.length}\n\n` +
+    items.map((q, i) => `${i + 1}. ${locEn(q)} (${q.code})\n   Original: "${q.source_excerpt}"\n   ${(q.report_en || '(English note missing)').replace(/\n/g, '\n   ')}`).join('\n\n') +
+    `\n\nThese notes are offered to help a future printing or edition. In the Korean edition we follow the original text and add a translator's note where needed.\n`;
+}
+function openEdit(q) {
+  editing = q; $('dt').textContent = `${q.code} · ${q.location}`; $('dex').textContent = q.source_excerpt; $('diss').textContent = q.issue_ko;
+  $('f_status').value = q.status === '전달' ? '확인' : q.status;
+  $('f_verdict').value = q.verdict_note || ''; $('f_tn').value = q.translator_note_ko || ''; $('f_rep').value = q.report_en || '';
+  $('dmsg').hidden = true; $('dlg').showModal();
+}
+$('tpl').onclick = () => {
+  const q = editing; if (!q) return;
+  $('f_rep').value = `Issue: [reason in English]\n   Suggested reading: "${q.suggested_en || ''}"`;
+};
+$('ff').addEventListener('submit', async e => {
+  if (e.submitter?.value !== 'save') return; e.preventDefault();
+  const st = $('f_status').value, v = $('f_verdict').value.trim();
+  if (['확인', '기각'].includes(st) && !v) { $('dmsg').hidden = false; $('dmsg').textContent = '확인·기각 판정에는 감수 의견을 적어 주세요.'; return; }
+  const row = { status: editing.status === '전달' && st === '확인' ? '전달' : st, verdict_note: v || null, translator_note_ko: $('f_tn').value.trim() || null, report_en: $('f_rep').value.trim() || null };
+  const { error } = await sb.from('source_queries').update(row).eq('id', editing.id);
+  if (error) { $('dmsg').hidden = false; $('dmsg').textContent = '저장하지 못했습니다: ' + error.message; return; }
+  $('dlg').close(); loadQs();
+});
+$('dl').onclick = () => {
+  const ok = qs.filter(q => q.status === '확인'); if (!ok.length) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([report(ok)], { type: 'text/markdown' }));
+  a.download = 'source_queries_for_publisher.md'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$('send').onclick = async () => {
+  const name = $('batch').value.trim(); const m = $('pmsg');
+  if (!name) { m.hidden = false; m.className = 'msg bad'; m.textContent = '묶음 이름을 적어 주세요.'; return; }
+  if (!confirm(`확인된 ${qs.filter(q => q.status === '확인').length}건을 '${name}' 묶음으로 전달 처리합니다. 이후에는 관리자만 고칠 수 있습니다.`)) return;
+  const { data, error } = await sb.rpc('send_source_queries', { p_book: cur, p_batch: name });
+  m.hidden = false; m.className = error ? 'msg bad' : 'msg';
+  m.textContent = error ? '처리하지 못했습니다: ' + error.message : `${data}건을 '${name}' 묶음으로 전달 처리했습니다.`;
+  loadQs();
+};
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-book]'); if (b) { cur = b.dataset.book; loadBooks(); loadQs(); }
+  const ed = e.target.closest('[data-edit]'); if (ed && !ed.disabled) openEdit(qs.find(q => q.id == ed.dataset.edit));
+});
+$('fs').onchange = $('fc').onchange = () => render();
+requireMember(async (s, prof) => {
+  isAdmin = prof.role === 'admin';
+  await loadBooks(); await loadQs();
+  sb.channel('source_queries').on('postgres_changes', { event: '*', schema: 'public', table: 'source_queries' }, p => {
+    if (p.new?.book_id !== cur) return; loadQs().then(() => render(p.new.id));
+  }).subscribe(st => { if (st === 'SUBSCRIBED') { $('live').textContent = '실시간 연결됨'; $('live').className = 'pill ok'; } });
+});
+</script>
+</body></html>
