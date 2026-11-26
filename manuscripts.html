@@ -74,7 +74,7 @@ function judge(text) {
   const hangul = (t.match(/[가-힣]/g) || []).length, latin = (t.match(/[A-Za-z]/g) || []).length, odd = (t.match(/[-�]|[\u0080-ÿ]/g) || []).length;
   const ratio = hangul / Math.max(1, hangul + latin + odd);
   const korean = ['저자 원고', '출간본'].includes($('kind').value);
-  return { state: (odd / t.length > 0.15 || (korean && ratio < 0.3)) ? '깨짐' : '정상', ratio };
+  return { state: (odd / t.length > 0.15 || (korean && ratio < 0.1 && t.length > 50)) ? '깨짐' : '정상', ratio };
 }
 function drawPages() {
   $('pages').innerHTML = pages.map(p => `<div class="pg ${p.source === 'OCR' ? 'ocr' : p.state === '정상' ? 'ok' : 'bad'}" title="${p.state}${p.conf ? ' · 신뢰도 ' + Math.round(p.conf) : ''}">${p.no}쪽</div>`).join('');
