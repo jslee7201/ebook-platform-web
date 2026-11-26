@@ -166,7 +166,7 @@ document.addEventListener('click', async e => {
 });
 document.addEventListener('change', async e => { const r = e.target.closest('[data-req]'); if (r) await sb.from('manuscripts').update({ original_request: r.value }).eq('id', r.dataset.req); });
 $('vclose').onclick = () => $('viewer').hidden = true;
-$('file').onchange = () => { file = $('file').files[0]; $('scan').disabled = !file; $('scanres').hidden = true; $('ocrbox').hidden = true; $('savebox').hidden = true; };
+$('file').onchange = () => { file = $('file').files[0]; $('scan').disabled = !file; $('scanres').hidden = true; $('ocrbox').hidden = true; $('savebox').hidden = true; if (file) $('scan').click(); };  // 파일을 고르면 바로 검사 (검사 버튼을 따로 누르지 않아도 보관 단계가 나옴)
 $('scan').onclick = async () => { $('scan').disabled = true; try { await scan(file); } catch (e) { $('verdict').innerHTML = `<span class="pill bad">파일을 읽지 못했습니다: ${esc(e.message)}</span>`; } $('scan').disabled = false; };
 $('ocr').onclick = runOcr;
 $('save').onclick = () => save(file, file.name);
