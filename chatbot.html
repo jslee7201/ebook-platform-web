@@ -132,7 +132,7 @@ function addBot(r, logId) {
   const d = document.createElement('div'); d.className = 'm b ' + (r.reason || '');
   let h = esc(r.message);
   if (r.sources?.length) h += `<div class="src">${[...new Set(r.sources)].slice(0, 5).map(id => `<span class="pill">근거: ${esc(bot.label(id))}</span>`).join('')}</div>`;
-  if (r.related?.length) h += `<div class="src"><span class="note">대신 책의 일반 내용:</span>${r.related.map(x => `<span class="pill">${esc(bot.label(x.id))}</span>`).join('')}</div>`;
+  if (r.related?.length) h += `<div class="src"><span class="note">대신 책의 일반 내용:</span>${[...new Set(r.related.map(x => bot.label(x.id)))].map(t => `<span class="pill">${esc(t)}</span>`).join('')}</div>`;
   if (r.reason) h += `<div class="meta">${pill(r.reason)}<span class="note">${esc(r.rule || r.mode || '')}${r.top != null ? ' · 점수 ' + r.top : ''}${r.unknown?.length ? ' · 책에 없는 말: ' + esc(r.unknown.join(', ')) : ''}</span>${logId ? `<span class="sp"></span><button type="button" class="btn ghost" data-ok="${logId}">맞음</button><button type="button" class="btn ghost" data-ng="${logId}">틀림</button>` : ''}</div>`;
   d.innerHTML = h; $('chat').appendChild(d); $('chat').scrollTop = $('chat').scrollHeight; return d;
 }
