@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>권리 게이트</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@700&display=swap">
+<link rel="stylesheet" href="app.css?v=3">
+</head><body>
+<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="index.html">홈</a><a href="glossary.html">공용 용어집</a><a href="rights.html" aria-current="page">권리 게이트</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
+<main>
+  <div>
+    <h1>권리 게이트</h1>
+    <p class="muted" style="margin:0">책마다 산출물별 계약 권리와 추가 동의를 관리합니다. 계약에 없고 동의도 없는 산출물은 <b>배포할 수 없습니다</b>. 이 규칙은 데이터베이스가 직접 지키므로 화면을 거치지 않아도 막힙니다. <span id="live" class="pill">연결 중…</span></p>
+  </div>
+
+  <div class="row" role="tablist" id="books" aria-label="책 선택"></div>
+
+  <section class="card" aria-labelledby="sum-h">
+    <h2 id="sum-h">요약</h2>
+    <div id="sum" class="row"></div>
+  </section>
+
+  <section class="card" aria-labelledby="t-h">
+    <h2 id="t-h">산출물별 권리</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>산출물</th><th>계약</th><th>추가 동의</th><th>게이트</th><th>배포 상태</th><th id="act-h">관리</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+    <div id="m" class="msg" hidden></div>
+    <p class="note" style="margin:0">동의 철회나 계약 해제가 기록되면 그 산출물은 자동으로 잠깁니다. 저자·역자는 자기 책의 동의만 기록할 수 있고, 관리자는 대리로 기록할 수 있습니다(누가 언제 기록했는지 남습니다).</p>
+  </section>
+
+  <section class="card" aria-labelledby="log-h">
+    <h2 id="log-h">변경 기록</h2>
+    <ul id="log" style="margin:0;padding-left:1.2em;display:grid;gap:4px" class="note"></ul>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <form id="cf" method="dialog" style="display:grid;gap:14px">
+    <h2 id="ct">동의 기록</h2>
+    <p id="cdesc" class="note" style="margin:0"></p>
+    <div class="form">
+      <label for="c_dec">결정</label><select id="c_dec"><option>동의</option><option>거절</option><option value="필요">미정으로 되돌리기</option></select>
+      <label for="c_note">근거·메모</label><input id="c_note" placeholder="예: 저자 이메일 동의(11-26), 포털 동의서">
+    </div>
+    <div id="cmsg" class="msg bad" hidden></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn ghost" value="cancel" formnovalidate>닫기</button><button class="btn" value="save">기록</button></div>
+  </form>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="config.js?v=2"></script>
+<script>
+const $ = id => document.getElementById(id);
+const P = { print:'종이책', ebook:'전자책(EPUB)', web:'웹뷰어', chatbot:'챗봇', ai_translation:'AI 번역', audio:'오디오북', video:'영상' };
+const ORDER = Object.keys(P);
+let books = [], rights = [], cur = null, isAdmin = false, target = null;
+
+function msg(t, bad) { const m = $('m'); m.hidden = false; m.textContent = t; m.className = 'msg' + (bad ? ' bad' : ''); clearTimeout(msg.t); msg.t = setTimeout(() => m.hidden = true, 6000); }
+const allowed = r => r.contract || r.consent_status === '동의';
+
+async function loadBooks() {
+  const { data } = await sb.from('books').select('id,title,work_type').order('title');
+  books = data || [];
+  if (!cur && books.length) cur = books.find(b => b.title === '사람해부학')?.id || books[0].id;
+  $('books').innerHTML = books.map(b => `<button role="tab" class="btn ${b.id === cur ? '' : 'ghost'}" aria-selected="${b.id === cur}" data-book="${b.id}">${esc(b.title)} <span class="pill">${esc(b.work_type)}</span></button>`).join('');
+}
+async function loadRights() {
+  const { data, error } = await sb.from('book_rights').select('*').eq('book_id', cur);
+  if (error) { msg('불러오지 못했습니다: ' + error.message, true); return; }
+  rights = data.sort((a, b) => ORDER.indexOf(a.product) - ORDER.indexOf(b.product));
+  render(); loadLog();
+}
+function render(flash) {
+  const ok = rights.filter(allowed).length, pub = rights.filter(r => r.publish_status === '배포').length, need = rights.filter(r => !r.contract && r.consent_status === '필요');
+  $('sum').innerHTML = `<span class="pill ok">배포 가능 ${ok} / ${rights.length}</span><span class="pill">배포 중 ${pub}</span>` +
+    (need.length ? `<span class="pill warn">동의 필요: ${need.map(r => esc(P[r.product]) + '(' + esc(r.consent_party || '') + ')').join(', ')}</span>` : '');
+  $('act-h').hidden = !isAdmin;
+  $('rows').innerHTML = rights.map(r => {
+    const a = allowed(r);
+    const consent = r.contract ? '<span class="note">필요 없음</span>' :
+      `<span class="pill ${r.consent_status === '동의' ? 'ok' : r.consent_status === '거절' ? 'bad' : 'warn'}">${esc(r.consent_party || '')} ${esc(r.consent_status)}</span>` +
+      (r.consent_at ? `<br><span class="note">${new Date(r.consent_at).toLocaleDateString('ko-KR')}${r.consent_note ? ' · ' + esc(r.consent_note) : ''}</span>` : '') +
+      `<br><button class="btn ghost" data-consent="${r.id}" style="margin-top:4px">동의 기록</button>`;
+    const pubSel = isAdmin ? `<select data-pub="${r.id}" aria-label="${esc(P[r.product])} 배포 상태">${['잠금', '준비', '배포'].map(s => `<option ${s === r.publish_status ? 'selected' : ''} ${!a && s !== '잠금' ? 'disabled' : ''}>${s}</option>`).join('')}</select>` : esc(r.publish_status);
+    return `<tr${r.id === flash ? ' class="flash"' : ''}><td><b>${esc(P[r.product])}</b></td>
+      <td>${r.contract ? '<span class="pill ok">계약 포함</span>' : '<span class="pill">계약 없음</span>'}</td>
+      <td>${consent}</td>
+      <td>${a ? '<span class="pill ok">배포 가능</span>' : '<span class="pill bad">잠금</span>'}</td>
+      <td>${pubSel}</td>
+      <td ${isAdmin ? '' : 'hidden'}><label class="note"><input type="checkbox" data-contract="${r.id}" ${r.contract ? 'checked' : ''}> 계약 포함</label></td></tr>`;
+  }).join('');
+}
+async function loadLog() {
+  const { data } = await sb.from('rights_log').select('*').eq('book_id', cur).order('changed_at', { ascending: false }).limit(15);
+  $('log').innerHTML = (data || []).map(l => {
+    let t = '';
+    if (l.action === 'consent') t = `${P[l.product]} 동의 기록: ${l.detail.decision}${l.detail.note ? ' (' + l.detail.note + ')' : ''}`;
+    else { const b = l.detail.before || {}, a = l.detail.after || {}; const ch = [];
+      if (b.contract !== a.contract) ch.push(a.contract ? '계약 포함으로 변경' : '계약 해제');
+      if (b.publish_status !== a.publish_status) ch.push(`배포 상태 ${b.publish_status}→${a.publish_status}`);
+      if (b.consent_status !== a.consent_status) ch.push(`동의 ${b.consent_status}→${a.consent_status}`);
+      if (!ch.length) return ''; t = `${P[l.product]}: ${ch.join(', ')}`; }
+    return `<li>${new Date(l.changed_at).toLocaleString('ko-KR')} · ${esc(t)}</li>`;
+  }).join('') || '<li>기록이 없습니다.</li>';
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-book]'); if (b) { cur = b.dataset.book; loadBooks(); loadRights(); }
+  const c = e.target.closest('[data-consent]');
+  if (c) { target = rights.find(r => r.id == c.dataset.consent);
+    $('ct').textContent = `${P[target.product]} 추가 동의`; $('cdesc').textContent = `동의할 상대: ${target.consent_party || '-'} · 지금 상태: ${target.consent_status}${isAdmin ? ' · 관리자는 받은 동의를 대리로 기록합니다.' : ''}`;
+    $('c_note').value = ''; $('cmsg').hidden = true; $('dlg').showModal(); }
+});
+document.addEventListener('change', async e => {
+  const p = e.target.closest('[data-pub]');
+  if (p) { const { error } = await sb.from('book_rights').update({ publish_status: p.value }).eq('id', p.dataset.pub);
+    if (error) { msg(error.message, true); loadRights(); } else msg('배포 상태를 바꿨습니다.'); }
+  const k = e.target.closest('[data-contract]');
+  if (k) { const { error } = await sb.from('book_rights').update({ contract: k.checked }).eq('id', k.dataset.contract);
+    if (error) { msg(error.message, true); loadRights(); } else msg(k.checked ? '계약 포함으로 바꿨습니다.' : '계약에서 뺐습니다. 동의가 없으면 잠깁니다.'); }
+});
+$('cf').addEventListener('submit', async e => {
+  if (e.submitter?.value !== 'save') return; e.preventDefault();
+  const { error } = await sb.rpc('record_consent', { p_book: target.book_id, p_product: target.product, p_decision: $('c_dec').value, p_note: $('c_note').value.trim() || null });
+  if (error) { $('cmsg').hidden = false; $('cmsg').textContent = error.message; return; }
+  $('dlg').close(); msg('동의를 기록했습니다.'); loadRights();
+});
+
+requireMember(async (session, prof) => {
+  isAdmin = prof.role === 'admin';
+  await loadBooks(); await loadRights();
+  sb.channel('rights').on('postgres_changes', { event: '*', schema: 'public', table: 'book_rights' }, p => {
+    if (p.new?.book_id !== cur) return;
+    const i = rights.findIndex(r => r.id === p.new.id); if (i >= 0) rights[i] = p.new;
+    render(p.new.id); loadLog();
+  }).subscribe(s => { if (s === 'SUBSCRIBED') { $('live').textContent = '실시간 연결됨'; $('live').className = 'pill ok'; } });
+});
+</script>
+</body></html>
