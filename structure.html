@@ -35,7 +35,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
 <script src="config.js?v=2"></script>
-<script src="hwpx.js?v=2"></script>
+<script src="hwpx.js?v=3"></script>
 <script src="notesplit.js?v=1"></script>
 <script>
 const $ = id => document.getElementById(id);
@@ -79,14 +79,14 @@ $('conv').onclick = async () => {
   try {
     const { data: file, error: de } = await sb.storage.from('manuscripts').download(m.storage_path); if (de) throw de;
     box.textContent = '구조 추정 중…'; const t0 = performance.now();
-    const r = await Hwpx.convert(file, { chapterId: m.id.slice(0, 8) });
+    const r = await Hwpx.convert(file, { chapterId: m.id.slice(0, 8) }); let imgFail = 0;
     // 그림 원본을 비공개 보관함에 함께 보관
     const imgPath = {};
     for (const [i, im] of r.images.entries()) {
       box.textContent = `그림 보관 중 ${i + 1}/${r.images.length}`;
       const path = `${m.book_id}/${m.id}/images/${im.file}`;
       const up = await sb.storage.from('manuscripts').upload(path, im.blob, { upsert: true, contentType: im.blob.type || 'image/png' });
-      if (!up.error) imgPath[im.file] = path;
+      if (!up.error) imgPath[im.file] = path; else imgFail++;
     }
     // S-01: 편집 지시문 분리 (본문·캡션 글자 기준)
     let rows = r.blocks.map(b => ({ seq: b.seq, type: b.type, text: Hwpx.blockText(b), meta: { id: b.id, no: b.no || null, en: b.en || null, caption: b.caption ?? null, head: b.head || null, rows: b.rows || null, items: b.items || null, kind: b.kind || null, special: b.special || null, images: (b.images || []).map(i => ({ file: i.file, w: i.w, h: i.h, path: imgPath[i.file] || null })) }, infer_rule: b.infer?.rule || null, infer_confidence: b.infer?.confidence || null }));

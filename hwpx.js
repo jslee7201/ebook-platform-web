@@ -28,9 +28,16 @@
     async function saveImg(ref) {
       if (images[ref]) return images[ref];
       const href = manifest[ref] || Object.keys(z.files).find(n => n.startsWith(`BinData/${ref}.`)); if (!href || !z.file(href)) return null;
-      const blob = await z.file(href).async('blob'); let w = 0, h = 0;
-      try { const bmp = await createImageBitmap(blob); w = bmp.width; h = bmp.height; bmp.close(); } catch { }
-      images[ref] = { file: `${chId}_${ref}.${(href.split('.').pop() || 'png').toLowerCase()}`, w, h, blob, href }; return images[ref];
+      let blob = await z.file(href).async('blob'); let w = 0, h = 0; const ext = (href.split('.').pop() || '').toLowerCase();
+      try {
+        const bmp = await createImageBitmap(blob); w = bmp.width; h = bmp.height;
+        if (!['png', 'jpg', 'jpeg'].includes(ext)) {   // BMP·GIF 등은 PNG로 바꿈 (시제품과 같음, 웹·조판에서 그대로 씀)
+          const c = new OffscreenCanvas(w, h); c.getContext('2d').drawImage(bmp, 0, 0); blob = await c.convertToBlob({ type: 'image/png' });
+        } else blob = new Blob([blob], { type: ext === 'png' ? 'image/png' : 'image/jpeg' });
+        bmp.close();
+      } catch { }
+      const outExt = ['jpg', 'jpeg'].includes(ext) ? 'jpg' : 'png';
+      images[ref] = { file: `${chId}_${ref}.${outExt}`, w, h, blob, href }; return images[ref];
     }
     async function picsIn(e) { const out = []; for (const pc of all(e, 'hp', 'pic')) { const img = all(pc, 'hc', 'img')[0]; if (img) { const i = await saveImg(img.getAttribute('binaryItemIDRef')); if (i) out.push(i); } } return out; }
     const runsRich = p => kids(p, 'hp', 'run').map(r => { const t = all(r, 'hp', 't').map(x => x.textContent).join(''); if (!t) return ''; return (cpr[r.getAttribute('charPrIDRef')] || {}).bold && t.trim() ? `<b>${t}</b>` : t; }).join('').replace(/<\/b><b>/g, '').trim();
@@ -108,6 +115,6 @@
     if (/^h[1-4]$/.test(b.type)) return [b.no ? (b.type === 'h3' ? b.no + ')' : b.no) : '', b.text, b.en].filter(Boolean).join(' ');
     return b.text || '';
   }
-  const api = { convert, blockText, splitKoEn, version: '1.0' };
+  const api = { convert, blockText, splitKoEn, version: '1.1' };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Hwpx = api;
 })(typeof window !== 'undefined' ? window : globalThis);
