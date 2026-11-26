@@ -48,7 +48,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
 <script src="config.js?v=2"></script>
-<script src="pdfconvert.js?v=2"></script>
+<script src="pdfconvert.js?v=3"></script>
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 const $ = id => document.getElementById(id);
@@ -82,11 +82,10 @@ function stats() {
   if (!pdf) return;
   $('pager').innerHTML = Array.from({ length: pdf.numPages }, (_, i) => i + 1).map(n => `<button class="btn ${n === page ? '' : 'ghost'}" data-page="${n}" aria-label="${n}쪽">${n}${reviewed.has(n) ? ' ✓' : ''}</button>`).join('');
 }
+let renderTask = null, drawSeq = 0;
 async function draw() {
   if (!pdf) return;
-  const pg = await pdf.getPage(page), vp = pg.getViewport({ scale: 1.6 }), cv = $('cv');
-  cv.width = vp.width; cv.height = vp.height;
-  await pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+  const my = ++drawSeq;
   [...$('pw').querySelectorAll('.box')].forEach(e => e.remove());
   const pb = blocks.filter(b => b.page === page);
   pb.forEach(b => { if (!b.bbox) return; const d = document.createElement('div'); d.className = `box t-${b.type}${sel === b.seq ? ' sel' : ''}`; d.dataset.seq = b.seq;
@@ -100,7 +99,15 @@ async function draw() {
       <textarea data-text="${b.seq}" aria-label="블록 ${i + 1} 내용">${esc(b.text)}</textarea></div>`).join('') : '<p class="note">이 쪽에는 블록이 없습니다.</p>') +
     `<div class="row"><label class="note"><input type="checkbox" id="rv" ${reviewed.has(page) ? 'checked' : ''}> 이 쪽 확인 완료</label></div>`;
   stats();
+  // 쪽 그림은 마지막에: 이전 그리기는 취소 (같은 캔버스 동시 렌더 오류 방지)
+  const pg = await pdf.getPage(page); if (my !== drawSeq) return;
+  const vp = pg.getViewport({ scale: 1.6 }), cv = $('cv');
+  if (renderTask) renderTask.cancel();
+  cv.width = vp.width; cv.height = vp.height;
+  renderTask = pg.render({ canvasContext: cv.getContext('2d'), viewport: vp });
+  try { await renderTask.promise; } catch (e) { if (e && e.name === 'RenderingCancelledException') return; throw e; }
 }
+
 function mark() { dirty = true; $('save').disabled = false; $('msg').textContent = '저장하지 않은 수정이 있습니다.'; }
 function renumber() { blocks.forEach((b, i) => b.seq = i); }
 
