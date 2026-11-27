@@ -2,7 +2,7 @@
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>원서 의문점 감수</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@700&display=swap">
-<link rel="stylesheet" href="app.css?v=5">
+<link rel="stylesheet" href="app.css?v=6">
 <style>
 .q{border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;gap:8px;background:var(--surface)}
 .q.flash{animation:flash 2s}
@@ -17,7 +17,7 @@ dialog textarea{min-height:70px}
 .hist{font-size:12px;color:var(--muted);margin:0;padding-left:18px}
 </style>
 </head><body>
-<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="index.html">홈</a><a href="manuscripts.html">원고 입력</a><a href="glossary.html">공용 용어집</a><a href="kma.html">KMA 대조</a><a href="rights.html">권리 게이트</a><a href="figures.html">그림 대장</a><a href="queries.html" aria-current="page">원서 의문점</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
+<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav aria-label="제작 단계"></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
 <main>
   <div>
     <h1>원서 의문점 감수</h1>
@@ -82,6 +82,7 @@ dialog textarea{min-height:70px}
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
 <script src="config.js?v=2"></script>
+<script src="nav.js?v=1"></script>
 <script>
 const $ = id => document.getElementById(id);
 const ST = { '검토 대기': '', '확인': 'ok', '기각': 'bad', '보류': 'warn', '전달': 'ok' };

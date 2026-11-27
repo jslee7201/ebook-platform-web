@@ -60,3 +60,70 @@ input[type=file]{max-width:100%}
 select{max-width:100%}
 main,.card{grid-template-columns:minmax(0,1fr)}
 .card>*,main>*{min-width:0}
+
+/* ---------- 단계별 공통 메뉴 (nav.js) ---------- */
+.top{position:sticky;top:0;z-index:20}
+.top .stagenav{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.stagenav>a.home,.stagemenu>summary{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;text-decoration:none;font-weight:500;color:var(--ink);cursor:pointer;list-style:none;white-space:nowrap}
+.stagemenu>summary::-webkit-details-marker{display:none}
+.stagemenu>summary::after{content:'';width:6px;height:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg) translateY(-2px);margin-left:2px;opacity:.6}
+.stagenav>a.home:hover,.stagemenu>summary:hover{background:var(--accent-soft)}
+.stagenav>a.home[aria-current],.stagemenu.cur>summary{background:var(--accent-soft);color:var(--accent)}
+.stagemenu .no{font-weight:600;color:var(--accent)}
+.stagemenu{position:relative}
+.stagemenu .panel{position:absolute;left:0;top:calc(100% + 6px);min-width:300px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(10,40,48,.14);padding:8px;display:grid;gap:2px;z-index:30}
+.stagemenu .psub{margin:4px 8px 6px;font-size:12px;color:var(--muted)}
+.stagemenu .panel a{display:grid;gap:1px;padding:8px 10px;border-radius:8px;text-decoration:none;color:var(--ink)}
+.stagemenu .panel a span{font-size:12.5px;color:var(--muted)}
+.stagemenu .panel a:hover,.stagemenu .panel a[aria-current]{background:var(--accent-soft)}
+.stagemenu .panel a[aria-current] b{color:var(--accent)}
+@media (max-width:760px){.stagemenu{position:static}.stagemenu .panel{left:12px;right:12px;min-width:0}}
+
+.stagebar{background:var(--surface);border-bottom:1px solid var(--line);padding:10px max(16px,env(safe-area-inset-left)) 0}
+.stagebar .steps{list-style:none;margin:0 auto;padding:0;display:flex;max-width:1100px;counter-reset:s}
+.stagebar .steps li{flex:1;min-width:0;position:relative}
+.stagebar .steps li:not(:last-child)::after{content:'';position:absolute;top:13px;left:calc(50% + 18px);right:calc(-50% + 18px);height:2px;background:var(--line)}
+.stagebar .steps li.past:not(:last-child)::after,.stagebar .steps li.cur:not(:last-child)::after{background:linear-gradient(90deg,var(--accent) 0 50%,var(--line) 50%)}
+.stagebar .steps li.past:not(:last-child)::after{background:var(--accent)}
+.stagebar .steps a{display:flex;flex-direction:column;align-items:center;gap:3px;text-decoration:none;color:var(--muted);font-size:12.5px}
+.stagebar .steps .no{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--line);background:var(--surface);font-weight:600;position:relative;z-index:1}
+.stagebar .steps li.past .no{border-color:var(--accent);color:var(--accent)}
+.stagebar .steps li.cur .no{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.stagebar .steps li.cur a{color:var(--ink);font-weight:600}
+.stagebar .steps .t{text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.stagebar .subtabs{display:flex;gap:4px;max-width:1100px;margin:10px auto 0;overflow-x:auto;scrollbar-width:thin}
+.stagebar .subtabs a{padding:8px 12px;border-bottom:2px solid transparent;text-decoration:none;color:var(--muted);white-space:nowrap;font-weight:500}
+.stagebar .subtabs a[aria-current]{color:var(--accent);border-bottom-color:var(--accent)}
+.stagebar .subtabs a:hover{color:var(--ink)}
+@media (max-width:560px){.stagebar .steps .t{font-size:11px}}
+
+/* ---------- 홈: 단계 흐름 대시보드 ---------- */
+main.wide{max-width:1280px}
+.hero{display:grid;gap:6px}
+.hero h1{font-size:28px}
+.flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;position:relative}
+@media (max-width:1100px){.flow{grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))}}
+.stage{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:10px;align-content:start;position:relative;min-width:0}
+.stage::before{content:'';position:absolute;inset:0 0 auto 0;height:4px;border-radius:14px 14px 0 0;background:var(--accent);opacity:calc(.35 + var(--i) * .13)}
+@media (min-width:1101px){.stage:not(:last-child)::after{content:'';position:absolute;right:-12px;top:30px;width:10px;height:10px;border-top:2px solid var(--muted);border-right:2px solid var(--muted);transform:rotate(45deg);opacity:.5}}
+.stage .sh{display:flex;gap:10px;align-items:center}
+.stage .sn{width:32px;height:32px;border-radius:50%;background:var(--accent);color:var(--surface);display:grid;place-items:center;font-weight:600;flex:none}
+.stage h2{font-size:16px}
+.stage .ss{font-size:12.5px;color:var(--muted);margin:-4px 0 0}
+.stage .feats{display:grid;gap:6px}
+.feat{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 8px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;text-decoration:none;color:var(--ink);background:var(--bg)}
+.feat:hover{border-color:var(--accent);background:var(--accent-soft)}
+.feat b{font-weight:600;font-size:14px}
+.feat .d{grid-column:1/-1;font-size:12px;color:var(--muted);line-height:1.45}
+.feat .badge{font-size:11.5px;padding:1px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent);white-space:nowrap;align-self:start}
+.feat .badge.warn{background:var(--warn-soft);color:var(--warn)}
+.feat .badge.ok{background:var(--ok-soft);color:var(--ok)}
+.todo{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.todo li a{display:flex;gap:10px;align-items:center;padding:8px 10px;border-radius:8px;text-decoration:none;color:var(--ink);border:1px solid var(--line)}
+.todo li a:hover{background:var(--accent-soft)}
+.todo .tn{font-weight:600;color:var(--warn);min-width:3.2em;text-align:right}
+.todo .ts{font-size:12px;color:var(--muted);margin-left:auto;white-space:nowrap}
+.kpis{display:flex;gap:10px;flex-wrap:wrap}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 14px;min-width:110px}
+.kpi b{display:block;font-size:20px;font-family:var(--display)}
+.kpi span{font-size:12px;color:var(--muted)}

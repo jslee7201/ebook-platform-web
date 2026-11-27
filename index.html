@@ -2,7 +2,7 @@
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>e-book 제작 플랫폼</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@700&display=swap">
-<link rel="stylesheet" href="app.css?v=5">
+<link rel="stylesheet" href="app.css?v=6">
 </head><body>
 <header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav id="nav" hidden><a href="index.html" aria-current="page">홈</a><a href="manuscripts.html">원고 입력</a><a href="tables.html">표 편집기</a><a href="guides.html">스타일 가이드</a><a href="glossary.html">공용 용어집</a><a href="kma.html">KMA 대조</a><a href="rights.html">권리 게이트</a><a href="figures.html">그림 대장</a><a href="queries.html">원서 의문점</a><a href="chatbot.html">챗봇 거절</a><a href="tts.html">TTS 비교</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost" hidden>로그아웃</button></header>
 <main>
@@ -23,38 +23,66 @@
     <p style="margin:0">가입이 접수되었습니다. 관리자가 승인하면 화면을 쓸 수 있습니다. 승인 후 이 페이지를 새로 고치세요.</p>
   </section>
 
-  <section id="home" hidden style="display:grid;gap:20px">
-    <h1>작업 공간</h1>
-    <div class="card">
-      <h2>사용할 수 있는 기능</h2>
-      <ul style="margin:0;padding-left:1.2em;display:grid;gap:6px">
-        <li><a href="manuscripts.html">원고 입력</a> <span class="pill ok">P-01</span><br><span class="note">원고 원본을 비공개 보관함에 보관하고 쪽별 글자를 꺼냅니다. 글자층이 없거나 깨진 PDF는 그 쪽만 OCR로 읽고, 추출 가능한 원본 요청을 관리합니다.</span></li>
-        <li><a href="convert.html">변환 확인</a> <span class="pill ok">P-02 · P-16 · P-17</span><br><span class="note">PDF 원고를 구조화 블록으로 바꿉니다. 2단 읽기 순서, 줄 단위로 끊긴 문단 잇기, 캡션·그림 속 글자 분리를 자동으로 하고, 사람이 쪽마다 원본 옆에서 확인·수정합니다.</span></li>
-        <li><a href="structure.html">원고 구조 확인 (HWPX)</a> <span class="pill ok">S-05</span><br><span class="note">한글 원고를 브라우저에서 구조화합니다. 제목 스타일(개요 1~4)을 썼으면 그대로, 굵은 글씨·표 상자로만 표시했으면 모양으로 추정하고 근거·확신도를 붙입니다. 확신도 중간인 곳은 사람이 확인해야 원고를 확인 완료로 바꿀 수 있습니다. 저자에게는 <a href="author-guide.html">저자 원고 작성 가이드</a>(로그인 없이 열림)를 보냅니다.</span></li>
-        <li><a href="notes.html">편집 지시문</a> <span class="pill ok">S-01</span><br><span class="note">저자가 원고 속에 남긴 편집자용 작업 지시를 변환 저장 때 자동으로 찾아 본문에서 뺍니다(그대로 인쇄되는 사고 방지). 애매한 문장은 본문에 둔 채 판정을 기다리고, 판정 전에는 원고를 확인 완료로 바꿀 수 없습니다.</span></li>
-        <li><a href="figreview.html">그림 원본 검수</a> <span class="pill ok">S-02</span><br><span class="note">AI 그림 판독 결과를 그림별로 모아 판정합니다. 그림 오류를 확정하거나 기각하려면 해당 부분을 원본 해상도(100% 이상)로 확대해 본 기록(배율·영역)이 있어야 합니다. 축소 이미지 오판(과→파)을 막기 위한 장치입니다.</span></li>
-        <li><a href="layout.html">학습서 조판</a> <span class="pill ok">S-03</span><br><span class="note">브라우저 안에서 실제 쪽을 나눠 보고 그림이 인용 문단과 같은 쪽(안 되면 같은 펼침면)에 오도록 자리·크기를 정합니다. 학습서 템플릿은 펼침면 바깥쪽에 메모 칸을 둡니다. 결과는 인쇄로 PDF 저장. <span class="pill ok">S-04</span> 자동 배치 뒤 편집자가 그림을 한 블록씩 옮기거나 크기를 바꿔 바로 다시 쪽을 나눠 보고, 손댄 그림은 고정해 다음 자동 계산에서도 지킵니다. 참고문헌 쪽에는 메모 칸을 넣지 않습니다.</span></li>
-        <li><a href="tables.html">표 편집기</a> <span class="pill ok">P-03</span><br><span class="note">변환으로 풀린 셀 병합을 되돌립니다. 칸이 밀린 줄, 묶음 제목 줄, 각주 줄, 한 칸에 붙은 여러 항목을 자동으로 찾아 고칠 방법을 제안하고, 칸 병합·분할·줄·칸 넣기로 직접 고칩니다.</span></li>
-        <li><a href="guides.html">스타일 가이드</a> <span class="pill ok">버전 잠금</span><br><span class="note">작업 전에 가이드를 잠그고 책에 연결합니다. 잠긴 가이드는 고칠 수 없고, 잠긴 가이드가 없는 책은 작업을 저장할 수 없습니다. 작업마다 기준 버전이 기록되고, 가이드 규칙으로 문장을 자동 검사합니다.</span></li>
-        <li><a href="glossary.html">공용 용어집</a> <span class="pill ok">P-11 · P-12 · P-13</span><br><span class="note">여러 편집자·역자가 같은 용어집을 실시간으로 함께 씁니다. 같은 영문에 다른 한글, 동음이의어, 옛 용어를 자동으로 경고하고, 원고 문장을 붙여 넣으면 용어를 검사합니다.</span></li>
-        <li><a href="kma.html">KMA 용어 대조</a> <span class="pill ok">P-10</span><br><span class="note">용어집 한글을 대한의사협회 의학용어집과 대조합니다. 용어별로 KMA 검색 결과를 기록하고(저작권 때문에 통째 복사 안 함), 허락받은 자료가 있으면 자동 대조합니다. 다른 용어는 한 번에 표준어로 바꿉니다.</span></li>
-        <li><a href="rights.html">권리 게이트</a> <span class="pill ok">P-07</span><br><span class="note">책마다 산출물(종이책·전자책·웹뷰어·챗봇·AI 번역·오디오·영상)별 계약 권리와 추가 동의를 관리합니다. 권리가 없으면 배포 상태로 바꿀 수 없습니다.</span></li>
-        <li><a href="figures.html">그림 대장</a> <span class="pill ok">P-05</span><br><span class="note">그림마다 출처·허락된 산출물·인물 사진 동의를 기록합니다. 권리가 확인되지 않은 그림이 있으면 해당 산출물 배포가 막힙니다.</span></li>
-        <li><a href="queries.html">원서 의문점 감수</a> <span class="pill ok">P-18</span><br><span class="note">번역 중 찾은 원서 자체의 의문점을 감수자가 확인·기각·보류로 판정합니다. 확인된 항목은 한국어판 역주 목록과 원출판사 전달 목록(영문)으로 묶이고, 전달 기록이 남습니다.</span></li>
-        <li><a href="chatbot.html">챗봇 거절 관리</a> <span class="pill ok">챗봇 거절 사유 분리</span><br><span class="note">도서 챗봇이 답하지 않는 이유를 응급·위기, 진료 상담 거절, 책 밖 의료 정보, 책 밖 질문으로 나눠 안내합니다. 평가 세트로 판정 정확도(위기 놓침 포함)를 재고, 시험 대화의 틀린 판정을 평가 세트로 모읍니다.</span></li>
-        <li><a href="tts.html">TTS 비교</a> <span class="pill ok">TTS 비교</span><br><span class="note">같은 낭독 원고를 기기 음성·성우 녹음·상용 음성으로 들어 보고 발음·의학용어·자연스러움·속도를 평가합니다. 낭독문은 원문에서 자동으로 만들고(인용번호·영문 병기 빼기, 발음 사전), 잘못 읽은 말은 발음 사전에 바로 넣습니다.</span></li>
-      </ul>
-      <p class="note" style="margin:0">기획안 9절 백로그를 하나씩 이 플랫폼에 추가합니다.</p>
+  <section id="home" hidden style="display:grid;gap:22px">
+    <div class="hero">
+      <h1>e-book 제작 흐름</h1>
+      <p class="muted" style="margin:0">원고 접수부터 출간·2차 산출물까지 다섯 단계입니다. 단계마다 기능을 누르면 바로 들어가고, 숫자는 지금 사람이 처리해야 할 일입니다.</p>
+      <div id="kpis" class="kpis" aria-label="현황"></div>
     </div>
-    <div class="card"><h2>현황</h2><div id="stats" class="row muted">불러오는 중…</div></div>
+    <div id="flow" class="flow"></div>
+    <section class="card" aria-labelledby="todo-h">
+      <div class="row" style="justify-content:space-between"><h2 id="todo-h">지금 할 일</h2><span id="todoN" class="pill warn"></span></div>
+      <ul id="todo" class="todo"><li class="note">불러오는 중…</li></ul>
+      <p class="note" style="margin:0">저자에게는 로그인 없이 열리는 <a href="author-guide.html">저자 원고 작성 가이드</a>를 보내 주세요.</p>
+    </section>
   </section>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
 <script src="config.js?v=2"></script>
+<script src="nav.js?v=1"></script>
 <script>
 const $ = id => document.getElementById(id);
 function show(id){ ['login','pending','home'].forEach(x => $(x).hidden = x !== id); }
 function msg(t, bad){ const m=$('m'); m.hidden=false; m.textContent=t; m.className='msg'+(bad?' bad':''); }
+// 기능별 할 일 숫자: 실패하면 숫자 없이 그림
+const head = (t, f) => { let q = sb.from(t).select('*', { count: 'exact', head: true }); return (f ? f(q) : q).then(r => r.error ? null : r.count); };
+const COUNTS = {
+  'manuscripts.html': async () => { const n = await head('manuscripts'); return n == null ? null : { n, label: `원고 ${n}` }; },
+  'convert.html': async () => { const n = await head('manuscripts', q => q.ilike('mime', '%pdf%').neq('convert_status', '확인 완료')); return n ? { n, label: `확인 중 ${n}`, warn: true, todo: 'PDF 변환 확인이 끝나지 않은 원고' } : { label: '모두 확인', ok: true }; },
+  'structure.html': async () => { const n = await head('structured_blocks', q => q.eq('infer_confidence', '중간').is('confirmed_at', null)); return n ? { n, label: `확인 ${n}`, warn: true, todo: '추정한 제목 구조 확인' } : null; },
+  'notes.html': async () => { const n = await head('manuscript_notes', q => q.eq('status', '확인 필요')); const t = await head('manuscript_notes', q => q.eq('status', '지시문(할 일)')); return n ? { n, label: `판정 ${n}`, warn: true, todo: '편집 지시문 의심 판정' + (t ? ` (할 일 ${t}건 별도)` : '') } : t ? { label: `할 일 ${t}` } : null; },
+  'guides.html': async () => { const n = await head('style_guides', q => q.eq('status', '초안')); return n ? { n, label: `초안 ${n}`, warn: true, todo: '스타일 가이드 잠금 (잠그기 전에는 그 책 작업 저장 불가)' } : { label: '모두 잠금', ok: true }; },
+  'glossary.html': async () => { const n = await head('glossary_terms'); return n == null ? null : { label: `용어 ${n}` }; },
+  'kma.html': async () => { const t = await head('glossary_terms'), c = await head('kma_checks'); if (t == null || c == null) return null; const n = Math.max(0, t - c); return n ? { n, label: `미확인 ${n}`, warn: true, todo: 'KMA 의학용어집 대조' } : { label: '모두 확인', ok: true }; },
+  'tables.html': async () => { const n = await head('book_tables'); return n == null ? null : { label: `표 ${n}` }; },
+  'queries.html': async () => { const n = await head('source_queries', q => q.eq('status', '검토 대기')); return n ? { n, label: `감수 ${n}`, warn: true, todo: '원서 의문점 감수 판정' } : { label: '판정 끝', ok: true }; },
+  'figreview.html': async () => { const n = await head('figure_findings', q => q.eq('status', '확인 필요')); return n ? { n, label: `판정 ${n}`, warn: true, todo: '그림 판독 결과를 원본 확대로 판정' } : { label: '판정 끝', ok: true }; },
+  'layout.html': async () => { const { data } = await sb.from('layout_runs').select('summary').order('created_at', { ascending: false }).limit(1); const s = data?.[0]?.summary; if (!s) return { label: '계산 전' }; const tot = Object.values(s).reduce((a, b) => a + b, 0); return { label: `같은 쪽 ${s['같은 쪽'] || 0}/${tot}`, ok: true }; },
+  'rights.html': async () => { const n = await head('book_rights', q => q.eq('publish_status', '배포')); return n == null ? null : { label: `배포 ${n}` }; },
+  'figures.html': async () => { const n = await head('figures', q => q.not('rights_status', 'in', '("불필요","허락")')); return n ? { n, label: `권리 확인 ${n}`, warn: true, todo: '그림 권리(출처·허락) 확인' } : { label: '모두 확인', ok: true }; },
+  'chatbot.html': async () => { const { data } = await sb.from('chat_eval_runs').select('passed,total').order('created_at', { ascending: false }).limit(1); const r = data?.[0]; return r ? { label: `평가 ${r.passed}/${r.total}`, ok: r.passed === r.total } : { label: '평가 전' }; },
+  'tts.html': async () => { const n = await head('tts_ratings'); return n ? { label: `평가 ${n}` } : { n: 1, label: '평가 0', warn: true, todo: 'TTS 음성 청취 평가 (아직 0건)', count: '시작' }; }
+};
+async function buildHome() {
+  const S = window.EBOOK_STAGES;
+  $('flow').innerHTML = S.map(s => `<section class="stage" style="--i:${s.no - 1}" aria-labelledby="st-${s.no}">
+      <div class="sh"><span class="sn">${s.no}</span><div><h2 id="st-${s.no}">${esc(s.title)}</h2></div></div>
+      <p class="ss">${esc(s.sub)}</p>
+      <div class="feats">${s.items.map(i => `<a class="feat" href="${i.href}" data-f="${i.href}"><b>${esc(i.name)}</b><span class="badge" hidden></span><span class="d">${esc(i.desc)}</span></a>`).join('')}</div>
+    </section>`).join('');
+  const results = await Promise.all(Object.entries(COUNTS).map(async ([href, fn]) => { try { return [href, await fn()]; } catch { return [href, null]; } }));
+  const todo = [];
+  for (const [href, r] of results) {
+    const el = document.querySelector(`[data-f="${href}"] .badge`); if (!el || !r) continue;
+    el.hidden = false; el.textContent = r.label; el.className = 'badge' + (r.warn ? ' warn' : r.ok ? ' ok' : '');
+    if (r.todo) { const st = S.find(s => s.items.some(i => i.href === href)), it = st.items.find(i => i.href === href); todo.push({ href, n: r.n, count: r.count, text: r.todo, stage: st, name: it.name }); }
+  }
+  todo.sort((a, b) => a.stage.no - b.stage.no);
+  $('todoN').textContent = `${todo.length}가지`;
+  $('todo').innerHTML = todo.length ? todo.map(t => `<li><a href="${t.href}"><span class="tn">${t.count || (t.n ?? '')}</span><span>${esc(t.text)}</span><span class="ts">${window.EBOOK_NUM[t.stage.no]} ${esc(t.stage.title)} · ${esc(t.name)}</span></a></li>`).join('') : '<li class="note">지금 사람이 처리할 일이 없습니다.</li>';
+  const [books, ms, figs, terms] = await Promise.all([head('books'), head('manuscripts'), head('figures'), head('glossary_terms')]);
+  $('kpis').innerHTML = [['책', books, '종'], ['원고', ms, '개'], ['그림', figs, '개'], ['공용 용어', terms, '개']].map(([l, v, u]) => `<div class="kpi"><b>${v ?? '-'}</b><span>${l} (${u})</span></div>`).join('');
+}
 async function route(){
   const { data:{ session } } = await sb.auth.getSession();
   if (!session) { show('login'); return; }
@@ -62,11 +90,8 @@ async function route(){
   const { data:prof } = await sb.from('profiles').select('display_name, role').eq('id', session.user.id).single();
   $('who').textContent = (prof?.display_name || session.user.email) + (prof?.role==='admin' ? ' · 관리자' : '');
   if (!prof || prof.role === 'pending') { show('pending'); return; }
-  $('nav').hidden = false; show('home');
-  const [{ count:t }, { count:b }] = await Promise.all([
-    sb.from('glossary_terms').select('*', { count:'exact', head:true }),
-    sb.from('books').select('*', { count:'exact', head:true })]);
-  $('stats').textContent = `용어 ${t ?? 0}개 · 책 ${b ?? 0}종`;
+  $('nav').hidden = false; show('home'); document.querySelector('main').classList.add('wide');
+  buildHome();
 }
 $('f').addEventListener('submit', async e => {
   e.preventDefault();

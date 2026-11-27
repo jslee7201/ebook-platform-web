@@ -2,7 +2,7 @@
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>원고 구조 확인</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@700&display=swap">
-<link rel="stylesheet" href="app.css?v=5">
+<link rel="stylesheet" href="app.css?v=6">
 <style>
 .outline{display:grid;gap:6px}
 .ol{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface)}
@@ -12,7 +12,7 @@
 .lv-h1{padding-left:0}.lv-h2{padding-left:1.2em}.lv-h3{padding-left:2.4em}.lv-h4{padding-left:3.6em}
 </style>
 </head><body>
-<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="index.html">홈</a><a href="manuscripts.html">원고 입력</a><a href="structure.html" aria-current="page">구조 확인</a><a href="notes.html">편집 지시문</a><a href="author-guide.html">저자 원고 가이드</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
+<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav aria-label="제작 단계"></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
 <main>
   <div>
     <h1>원고 구조 확인 (HWPX)</h1>
@@ -35,6 +35,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
 <script src="config.js?v=2"></script>
+<script src="nav.js?v=1"></script>
 <script src="hwpx.js?v=3"></script>
 <script src="notesplit.js?v=1"></script>
 <script>

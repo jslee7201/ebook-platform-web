@@ -2,9 +2,9 @@
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>권리 게이트</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@700&display=swap">
-<link rel="stylesheet" href="app.css?v=5">
+<link rel="stylesheet" href="app.css?v=6">
 </head><body>
-<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="index.html">홈</a><a href="manuscripts.html">원고 입력</a><a href="tables.html">표 편집기</a><a href="guides.html">스타일 가이드</a><a href="glossary.html">공용 용어집</a><a href="rights.html" aria-current="page">권리 게이트</a><a href="figures.html">그림 대장</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
+<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav aria-label="제작 단계"></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
 <main>
   <div>
     <h1>권리 게이트</h1>
@@ -49,6 +49,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
 <script src="config.js?v=2"></script>
+<script src="nav.js?v=1"></script>
 <script>
 const $ = id => document.getElementById(id);
 const P = { print:'종이책', ebook:'전자책(EPUB)', web:'웹뷰어', chatbot:'챗봇', ai_translation:'AI 번역', audio:'오디오북', video:'영상' };

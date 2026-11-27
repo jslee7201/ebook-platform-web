@@ -2,14 +2,14 @@
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>학습서 조판</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@700&display=swap">
-<link rel="stylesheet" href="app.css?v=5">
+<link rel="stylesheet" href="app.css?v=6">
 <style>
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:20px}
 #fr{width:100%;height:720px;border:1px solid var(--line);border-radius:8px;background:#e9ecf1}
 .prog{height:8px;border-radius:4px;background:var(--accent-soft);overflow:hidden}.prog>i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
 </style>
 </head><body>
-<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav><a href="index.html">홈</a><a href="figures.html">그림 대장</a><a href="figreview.html">그림 원본 검수</a><a href="layout.html" aria-current="page">학습서 조판</a></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
+<header class="top"><a class="brand" href="index.html">e-book 제작 플랫폼</a><nav aria-label="제작 단계"></nav><span class="sp"></span><span id="who"></span><button id="logout" class="btn ghost">로그아웃</button></header>
 <main>
   <div>
     <h1>학습서 조판</h1>
@@ -53,6 +53,7 @@
 </main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
 <script src="config.js?v=2"></script>
+<script src="nav.js?v=1"></script>
 <script src="layoutengine.js?v=3"></script>
 <script>
 const $ = id => document.getElementById(id);
